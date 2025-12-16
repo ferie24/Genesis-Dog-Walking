@@ -1,0 +1,31 @@
+# --- Core Python tools ---
+numpy>=1.23
+scipy>=1.9
+matplotlib>=3.7
+tqdm>=4.65
+pyyaml>=6.0
+
+# --- Deep Learning ---
+torch>=2.1
+torchvision>=0.16
+torchaudio>=2.1
+
+# --- RL and training ---
+
+gymnasium>=0.29
+# or gym==0.26 if your environment still uses gym API
+
+# --- Simulation (choose one backend) ---
+# For Genesis simulator
+genesis-world>=0.3.5
+# For Isaac Gym (comment out genesis-world if you use this instead)
+# isaacgym==1.0.0
+
+# --- Logging & experiment tracking ---
+wandb>=0.17.0
+tensorboard>=2.16
+
+# --- Utilities ---
+opencv-python>=4.9
+pandas>=2.2
+seaborn>=0.13

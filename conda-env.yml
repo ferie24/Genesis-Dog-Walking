@@ -1,0 +1,25 @@
+name: gs-dog
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pytorch>=2.8
+  - torchvision>=0.19        # auf die passende Version zum gewählten PyTorch-Release setzen
+  - torchaudio>=2.8
+  - pytorch-cuda=12.4        # CUDA-Build passend zum PyTorch-Installer (siehe pytorch.org)
+  - numpy>=1.23
+  - scipy>=1.9
+  - matplotlib>=3.7
+  - tqdm>=4.65
+  - pyyaml>=6.0
+  - gymnasium>=0.29
+  - opencv>=4.9
+  - pandas>=2.2
+  - seaborn>=0.13
+  - tensorboard>=2.16
+  - pip:
+      - genesis-world>=0.3.5
+      - wandb>=0.17.0
