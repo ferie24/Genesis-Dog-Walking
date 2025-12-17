@@ -293,7 +293,7 @@ class Go2WalkingEnv:
         
         for i in range(self.num_envs):
             self.robot.control_dofs_position(
-                target_dof_pos[i].cpu().numpy(),
+                target_dof_pos[i],
                 self.dof_indices,
                 envs_idx=[i]
             )
@@ -324,42 +324,57 @@ class Go2WalkingEnv:
         return self.obs_buf, rewards, self.reset_buf, {}
     
     def _update_state(self):
-        """Update all state buffers from simulation"""
-        for i in range(self.num_envs):
-            # Get base state
-            base_pos = self.robot.get_pos(envs_idx=[i])
-            base_quat = self.robot.get_quat(envs_idx=[i])
-            base_vel = self.robot.get_vel(envs_idx=[i])
-            # Guard against empty velocity arrays coming from the backend
-            if base_vel is None or len(base_vel) == 0 or len(base_vel[0]) < 6:
-                base_vel_np = np.zeros(6, dtype=float)
-            else:
-                base_vel_np = np.array(base_vel[0], dtype=float)
-                if base_vel_np.shape[-1] < 6:
-                    base_vel_np = np.pad(base_vel_np, (0, 6 - base_vel_np.shape[-1]))
-            
-            self.base_pos[i] = torch.tensor(base_pos[0], device=self.device)
-            self.base_quat[i] = torch.tensor(base_quat[0], device=self.device)
-            self.base_lin_vel[i] = torch.tensor(base_vel_np[:3], device=self.device)
-            self.base_ang_vel[i] = torch.tensor(base_vel_np[3:6], device=self.device)
-            
-            # Get joint states
-            dof_pos = self.robot.get_dofs_position(self.dof_indices, envs_idx=[i])
-            dof_vel = self.robot.get_dofs_velocity(self.dof_indices, envs_idx=[i])
-            
-            self.dof_pos[i] = torch.tensor(dof_pos, device=self.device)
-            self.dof_vel[i] = torch.tensor(dof_vel, device=self.device)
-            
-            # Get foot contacts
-            contact_forces = self.robot.get_links_net_contact_force(envs_idx=[i])
-            if contact_forces is None or contact_forces.numel() == 0:
-                contact_forces = torch.zeros((1, len(self.foot_link_indices), 3), device=self.device)
+        """Refresh state buffers without device/alloc thrash."""
+        base_pos = self.robot.get_pos(envs_idx=None)
+        base_quat = self.robot.get_quat(envs_idx=None)
+        base_vel = self.robot.get_vel(envs_idx=None)
+        dof_pos = self.robot.get_dofs_position(self.dof_indices, envs_idx=None)
+        dof_vel = self.robot.get_dofs_velocity(self.dof_indices, envs_idx=None)
+        contact_forces = self.robot.get_links_net_contact_force(envs_idx=None)
+
+        # Helper to normalize array/tensor to torch on self.device
+        def to_torch(x):
+            if isinstance(x, torch.Tensor):
+                return x.to(self.device, non_blocking=True)
+            return torch.as_tensor(x, device=self.device)
+
+        base_pos_t = to_torch(base_pos)
+        base_quat_t = to_torch(base_quat)
+
+        # Handle base_vel: ensure shape (...,6)
+        if isinstance(base_vel, torch.Tensor):
+            bv = base_vel
+            if bv.shape[-1] < 6:
+                pad = torch.zeros((*bv.shape[:-1], 6 - bv.shape[-1]), device=bv.device, dtype=bv.dtype)
+                bv = torch.cat([bv, pad], dim=-1)
+            base_vel_t = bv.to(self.device, non_blocking=True)
+        else:
+            base_vel_np = np.asarray(base_vel)
+            if base_vel_np.shape[-1] < 6:
+                pad = np.zeros((base_vel_np.shape[0], 6 - base_vel_np.shape[-1]), dtype=base_vel_np.dtype)
+                base_vel_np = np.concatenate([base_vel_np, pad], axis=-1)
+            base_vel_t = torch.as_tensor(base_vel_np, device=self.device)
+
+        dof_pos_t = to_torch(dof_pos)
+        dof_vel_t = to_torch(dof_vel)
+
+        self.base_pos.copy_(base_pos_t)
+        self.base_quat.copy_(base_quat_t)
+        self.base_lin_vel.copy_(base_vel_t[:, :3])
+        self.base_ang_vel.copy_(base_vel_t[:, 3:6])
+        self.dof_pos.copy_(dof_pos_t)
+        self.dof_vel.copy_(dof_vel_t)
+
+        if contact_forces is None or (hasattr(contact_forces, "numel") and contact_forces.numel() == 0):
+            self.foot_contacts.zero_()
+        else:
+            cf = to_torch(contact_forces)
             for j, link_idx in enumerate(self.foot_link_indices):
-                if link_idx >= contact_forces.shape[1]:
-                    force_vec = torch.zeros(3, device=self.device)
+                if link_idx >= cf.shape[1]:
+                    self.foot_contacts[:, j].zero_()
                 else:
-                    force_vec = contact_forces[0, link_idx]
-                self.foot_contacts[i, j] = (torch.norm(force_vec) > 1.0).float()
+                    self.foot_contacts[:, j].copy_((cf[:, link_idx].norm(dim=-1) > 1.0).float())
+
     
     def _compute_observations(self):
         """Compute observations from current state"""
