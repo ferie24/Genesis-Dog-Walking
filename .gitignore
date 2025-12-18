@@ -2,3 +2,4 @@
 *.pth
 *.cpython-311.pyc
 */__pycache__/*
+/checkpoints_videos/*
