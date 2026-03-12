@@ -63,6 +63,10 @@ class Network(nn.Module):
         actions = dist.sample()
         return actions, value
 
+    def get_value(self, state):
+
+        action_mean, action_std, value = self.forward(state)
+        return value
 
     def compute_log_probs(self, states, actions):
         action_mean, action_std, value = self.forward(states)
@@ -74,10 +78,10 @@ class Network(nn.Module):
     def compute_advantages(self, states, rewards, next_states, dones):
         raise NotImplementedError
 
-    def compute_loss(self, states, actions, advantages, critic_targets, log_probs_old):
-        critic_loss = F.mse_loss(critic_targets, self.compute_values(states))
+    def compute_loss(self, states, actions, advantages, critic_targets, log_probs_old, returns):
+        critic_loss = F.mse_loss(critic_targets, returns)
 
-        log_probs_new = self.compute_log_probs(states, actions)
+        log_probs_new, value, entropy = self.compute_log_probs(states, actions)
         ratios = torch.exp(log_probs_old - log_probs_new)
 
         surr1 = ratios * advantages

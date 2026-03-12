@@ -40,12 +40,13 @@ class Buffer:
 
         t = self.steps
         self.steps += 1
-        self.obs[t + 1].copy_(obs)
-        self.actions[t].copy_(actions)
+        # In Buffer.add_step
+        self.obs[t + 1].copy_(obs.detach())
+        self.actions[t].copy_(actions.detach())
         self.rewards[t].copy_(rewards)
-        self.log_probs[t].copy_(log_probs)
-        self.values[t].copy_(values)
-        self.dones[t].copy_(dones)
+        self.log_probs[t].copy_(log_probs.detach())
+        self.values[t].copy_(values.detach())
+        self.dones[t].copy_(dones.detach())
 
     def init_obs(self, obs0, values0):
         self.obs[0] = obs0
@@ -63,18 +64,18 @@ class Buffer:
             advantages = delta + gamma * lmbda * advantages * (1 - self.dones[t].squeeze(-1))
             self.advantages[t] = advantages.unsqueeze(-1)
             self.returns[t] = advantages + self.values[t].squeeze(-1)
-            self.returns[t] = self.returns[t].unsqueeze(-1)
+            #self.returns[t].copy_(self.returns[t])
         self.advantages = (self.advantages - self.advantages.mean()) / (self.advantages.std() + 1e-8)
 
     def get_batch(self, batch_size):
-        # Flatten for PPO updates: (T*N, D)
-        indices = torch.randperm(self.ptr * self.num_envs)[:batch_size]
+        indices = torch.randperm(self.steps * self.num_envs)[:batch_size]
         batch = dict(
-            obs=self.obs[:-1].reshape(-1, self.obs_dim)[indices],
-            actions=self.actions.reshape(-1, self.act_dim)[indices],
-            log_probs=self.log_probs.reshape(-1, 1)[indices],
-            advantages=self.advantages.reshape(-1, 1)[indices],
-            returns=self.returns.reshape(-1, 1)[indices],
+            obs=self.obs[:-1].reshape(-1, self.obs_dim)[indices].clone().detach(),  # ← CRITICAL
+            actions=self.actions.reshape(-1, self.act_dim)[indices].clone().detach(),
+            log_probs=self.log_probs.reshape(-1, 1)[indices].clone().detach(),
+            advantages=self.advantages.reshape(-1, 1)[indices].clone().detach(),
+            returns=self.returns.reshape(-1, 1)[indices].clone().detach(),
+            values=self.values.reshape(-1, 1)[indices].clone().detach(),
         )
         return batch
 

@@ -387,14 +387,7 @@ class Go2WalkingEnv:
         # Compute velocity in base frame
         base_lin_vel_base = transform_by_quat(self.base_lin_vel, inv_quat(self.base_quat))
         base_ang_vel_base = transform_by_quat(self.base_ang_vel, inv_quat(self.base_quat))
-        print("Shapes before cat:")
-        print("base_lin_vel_base:", base_lin_vel_base.shape)
-        print("base_ang_vel_base:", base_ang_vel_base.shape)
-        print("proj_gravity:", proj_gravity.shape)
-        print("commands:", self.commands.shape)
-        print("dof_pos - default:", (self.dof_pos - self.default_dof_pos).shape)
-        print("dof_vel:", self.dof_vel.shape)
-        print("actions:", self.actions.shape)
+
 
         # Assemble observations
         obs = torch.cat([
@@ -406,7 +399,7 @@ class Go2WalkingEnv:
             self.dof_vel * 0.05,               # 12
             self.actions,                      # 12
         ], dim=-1)
-        print("buf_dim: ", obs.shape)
+
         #print(obs)
         self.obs_buf[:] = obs
     
