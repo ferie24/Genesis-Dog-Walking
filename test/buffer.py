@@ -33,10 +33,10 @@ class Buffer:
             raise ValueError(f"obs dim {obs.shape} != {self.obs_dim}")
         if actions.shape[-1] != self.act_dim:
             raise ValueError(f"actions dim {actions.shape} != {self.act_dim}")
-        #if rewards.dim() == 1: rewards = rewards.unsqueeze(-1)  # (N,) -> (N,1)
-        #if log_probs.dim() == 1: log_probs = log_probs.unsqueeze(-1)
-        #if dones.dim() == 1: dones = dones.unsqueeze(-1).float()
-        #if values.dim() == 1: values = values.unsqueeze(-1)
+        if rewards.dim() == 1: rewards = rewards.unsqueeze(-1)  # (N,) -> (N,1)
+        if log_probs.dim() == 1: log_probs = log_probs.unsqueeze(-1)
+        if dones.dim() == 1: dones = dones.unsqueeze(-1).float()
+        if values.dim() == 1: values = values.unsqueeze(-1)
 
         t = self.steps
         self.steps += 1
@@ -53,19 +53,19 @@ class Buffer:
         self.values[0] = values0
 
     def compute_returns_and_advantages(self, gamma, lmbda):
-        advantages = torch.zeros(self.num_envs, device=self.device, dtype=torch.float32)
-        for t in reversed(range(self.max_length)):
-            if t == self.max_length:
-                next_value = torch.zeros_like(self.values[0])
-            else:
-                next_value = self.values[t + 1]
-            delta = self.rewards[t].squeeze(-1) + gamma * next_value.squeeze(-1) * (1 - self.dones[t].squeeze(-1)) - \
-                    self.values[t].squeeze(-1)
-            advantages = delta + gamma * lmbda * advantages * (1 - self.dones[t].squeeze(-1))
-            self.advantages[t] = advantages.unsqueeze(-1)
-            self.returns[t] = advantages + self.values[t].squeeze(-1)
-            #self.returns[t].copy_(self.returns[t])
-        self.advantages = (self.advantages - self.advantages.mean()) / (self.advantages.std() + 1e-8)
+        advantages = torch.zeros((self.num_envs, 1), device=self.device)
+
+        for t in reversed(range(self.steps)):
+            mask = 1.0 - self.dones[t].float()  # (N,1)
+            delta = self.rewards[t] + gamma * self.values[t + 1] * mask - self.values[t]
+            advantages = delta + gamma * lmbda * advantages * mask
+
+            self.advantages[t].copy_(advantages)
+            self.returns[t].copy_(advantages + self.values[t])
+
+        self.advantages[:self.steps] = ((
+                                self.advantages[:self.steps] - self.advantages[:self.steps].mean()) /
+                                        (self.advantages[:self.steps].std() + 1e-8))
 
     def get_batch(self, batch_size):
         indices = torch.randperm(self.steps * self.num_envs)[:batch_size]

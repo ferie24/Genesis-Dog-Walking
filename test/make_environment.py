@@ -229,51 +229,39 @@ class Go2WalkingEnv:
         
         # Contact sensors
         self.foot_contacts = torch.zeros((self.num_envs, 4), device=self.device)
-        
+
     def reset(self, env_ids=None):
-        """
-        Reset the environment.
-        
-        Args:
-            env_ids: Optional list of environment indices to reset. If None, reset all.
-        
-        Returns:
-            observations: Current observations after reset
-        """
         if env_ids is None:
             env_ids = torch.arange(self.num_envs, device=self.device)
-        
-        # Reset episode lengths
+
         self.episode_length_buf[env_ids] = 0
         self.reset_buf[env_ids] = False
-        
-        # Reset robot to initial pose
-        for env_id in env_ids:
-            # Set base position and orientation
-            self.robot.set_pos(self.base_init_pos.cpu().numpy(), zero_velocity=True, envs_idx=[env_id.item()])
-            self.robot.set_quat(np.array([0, 0, 0, 1]), zero_velocity=True, envs_idx=[env_id.item()])
-            
-            # Set joint positions to default standing pose
+
+        # Per-env loop (SIMPLEST, works always)
+        for i, env_id in enumerate(env_ids):
+            # Single position for this env
+            pos = self.base_init_pos if self.base_init_pos.dim() == 1 else self.base_init_pos[0]
+            quat = np.array([1, 0, 0, 0])
+
+            self.robot.set_pos(pos.cpu().numpy(), zero_velocity=True, envs_idx=[env_id.item()])
+            self.robot.set_quat(quat, zero_velocity=True, envs_idx=[env_id.item()])
+
+            # Single dof pos for this env
+            dof_pos = self.default_dof_pos if self.default_dof_pos.dim() == 1 else self.default_dof_pos[0]
             self.robot.set_dofs_position(
-                self.default_dof_pos.cpu().numpy(),
+                dof_pos.cpu().numpy(),
                 self.dof_indices,
                 zero_velocity=True,
                 envs_idx=[env_id.item()]
             )
-        
-        # Reset action buffers
-        #self.actions[env_ids] = 0.0
-        # BAD: self.actions[env_ids] = 0.0  # Makes scalar!
-        self.actions[env_ids] = torch.zeros((len(env_ids), self.num_actions), device=self.device)
 
-        self.last_actions[env_ids] = 0.0
-        
-        # Get new observations
+        self.actions[env_ids].zero_()
+        self.last_actions[env_ids].zero_()
+
         self._update_state()
         self._compute_observations()
-        
         return self.obs_buf
-    
+
     def step(self, actions):
         """
         Step the environment forward.
@@ -414,15 +402,21 @@ class Go2WalkingEnv:
 
         info = {
             "base_vel": self.base_lin_vel,
+            "base_ang_vel": self.base_ang_vel,
+            "base_pos": self.base_pos,
+            "base_init_pos": self.base_init_pos,
             "orientation_error": 1.0 - transform_by_quat(up_vec, self.base_quat)[:, 2],
             "foot_contacts": self.foot_contacts,
             "dof_pos": self.dof_pos,
             "dof_vel": self.dof_vel,
+            "default_dof_pos": self.default_dof_pos,
             "commands": self.commands,
             "base_height": self.base_pos[:, 2],
             "foot_vel": self.robot.get_links_vel(self.foot_link_indices),
-            "base_height": self.base_pos[:, 2],
-            "commands": self.commands,
+            "last_actions": self.last_actions,
+            "reset_buf": self.reset_buf,
+            "episode_length_buf": self.episode_length_buf,
+            "max_episode_length": self.max_episode_length,
         }
         return self.reward_fn(obs, actions, info)
     

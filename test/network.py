@@ -82,10 +82,10 @@ class Network(nn.Module):
         critic_loss = F.mse_loss(critic_targets, returns)
 
         log_probs_new, value, entropy = self.compute_log_probs(states, actions)
-        ratios = torch.exp(log_probs_old - log_probs_new)
+        ratios = torch.exp(log_probs_new - log_probs_old)
 
         surr1 = ratios * advantages
-        surr2 = torch.clamp(ratios, 1 - self.epsilon, 1 + self.epsilon)
+        surr2 = torch.clamp(ratios, 1 - self.epsilon, 1 + self.epsilon) * advantages
         actor_loss = -torch.min(surr1, surr2).mean()
 
         return critic_loss, actor_loss
