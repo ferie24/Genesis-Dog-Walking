@@ -42,7 +42,7 @@ def make_eval_video(
     return {
         "video_path": filename,
         "episode_reward": episode_reward,
-        "steps": step + 1,
+        "steps": eval_steps,
     }
 
 def save_checkpoint(path, policy, optim, update, avg_rew, extra=None):
