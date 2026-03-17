@@ -13,6 +13,7 @@ class Rewards:
             "similar_to_default": 0.02,
             "termination": 1.0,
             "sideway_movement": 0.1,
+            "base_height": 0.1,
         }
         if scales is not None:
             self.scales.update(scales)
@@ -30,6 +31,7 @@ class Rewards:
         reset_buf = info["reset_buf"]
         episode_length_buf = info["episode_length_buf"]
         max_episode_length = info["max_episode_length"]
+        base_height = info["base_height"]
 
         tracking_lin_vel_x = torch.exp(
             -torch.square(commands[:, 0] - base_vel[:, 0]) / tracking_sigma
@@ -59,6 +61,10 @@ class Rewards:
             base_pos[:, 0] - base_init_pos[0], max=1.0
         )
 
+        height = torch.clamp(
+            base_height - 0.2, min=0.0, max=0.5
+        )
+
         reward = (
                 self.scales["tracking_lin_vel_x"] * tracking_lin_vel_x
                 + self.scales["tracking_ang_vel"] * tracking_ang_vel
@@ -69,6 +75,7 @@ class Rewards:
                 - self.scales["similar_to_default"] * similar_to_default
                 - self.scales["termination"] * termination
                 - self.scales["sideway_movement"] * sideway_movement
+                - self.scales["base_height"] * height
         )
 
         return reward
