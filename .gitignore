@@ -3,3 +3,6 @@
 *.cpython-311.pyc
 */__pycache__/*
 */checkpoints_videos/*
+*/test/checkpoints/*
+*/test/video/*
+*/test/videos/*
