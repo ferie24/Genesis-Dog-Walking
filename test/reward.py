@@ -68,14 +68,14 @@ class Rewards:
         reward = (
                 self.scales["tracking_lin_vel_x"] * tracking_lin_vel_x
                 + self.scales["tracking_ang_vel"] * tracking_ang_vel
-                + self.scales["x_progress"] * x_progress
+                #+ self.scales["x_progress"] * x_progress
                 - self.scales["lin_vel_z"] * lin_vel_z
                 - self.scales["lin_vel_y"] * lin_vel_y
                 - self.scales["action_rate"] * action_rate
                 - self.scales["similar_to_default"] * similar_to_default
-                - self.scales["termination"] * termination
+                #- self.scales["termination"] * termination
                 - self.scales["sideway_movement"] * sideway_movement
-                - self.scales["base_height"] * height
+                #- self.scales["base_height"] * height
         )
 
         return reward
