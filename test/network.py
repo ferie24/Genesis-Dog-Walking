@@ -7,8 +7,8 @@ import torch.nn.functional as F
 class Network(nn.Module):
     def __init__(self, num_inputs,
                  num_outputs,
-                 gamma,
-                 lmbda,
+                 #gamma,
+                 #lmbda,
                  epsilon):
         """
         Network constructor.
@@ -42,8 +42,8 @@ class Network(nn.Module):
             nn.Linear(64, 1)
         )
 
-        self.gamma = gamma
-        self.lmbda = lmbda
+        #self.gamma = gamma
+        #self.lmbda = lmbda
         self.epsilon = epsilon
 
     def forward(self, state):

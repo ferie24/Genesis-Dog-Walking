@@ -4,6 +4,7 @@ import utils
 import torch
 import os
 import argparse
+import json
 from torch.utils.tensorboard import SummaryWriter
 
 gs.init(logging_level=logging.WARNING, backend=gs.gpu)
@@ -14,7 +15,7 @@ from make_environment import Go2WalkingEnv
 from reward import Rewards
 
 
-def main():
+def main(config):
     parser = argparse.ArgumentParser()
     parser.add_argument("-envs", "--num_envs", type=int, default=1)
     parser.add_argument("-updates", "--num_updates", type=int, default=1000)
@@ -23,73 +24,56 @@ def main():
     parser.add_argument("-gamma", "--gamma", type=float, default=0.99)
     parser.add_argument("-resume", "--start_update", type=int, default=0)
     args = parser.parse_args()
+
     path = os.getcwd()
-
-    reward_fn = Rewards()
-    num_envs = args.num_envs
     device = 'cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu'
-    num_updates = args.num_updates
-    steps_per_update = 128
-    update_epochs = 50
-    minibatch_size = 512
-    start_update = args.start_update
-    lin_vel_x = 0.4
-    total_lin_reward = torch.zeros((20, steps_per_update, num_envs, 1), device=device)
-
+    print(f"Running on: {device}")
+    lin_vel_x = config["env_cfg"]["movement"]["lin_vel_x"]
     writer = SummaryWriter("runs/my_experiment")
+
     env = Go2WalkingEnv(
-        num_envs=num_envs,
+        num_envs=args.num_envs,
         device=device,
         show_viewer=False,
         use_terrain=False,
-        episode_length_s=20.0,
-        reward_fn=reward_fn,
-        min_up_dot=0.05
+        episode_length_s=config["env_cfg"]["episode_length_s"],
+        reward_fn=Rewards(scales=config["reward_cfg"]),
     )
-    print(f"Running on: {device}")
-
-    env.set_commands(lin_vel_x=lin_vel_x, lin_vel_y=0.0, ang_vel_yaw=0.0)
+    env.set_commands(lin_vel_x=lin_vel_x,
+                     lin_vel_y=config["env_cfg"]["movement"]["lin_vel_y"],
+                     ang_vel_yaw=config["env_cfg"]["movement"]["lin_vel_yaw"])
     policy = Network(
         num_outputs=env.num_actions,
         num_inputs=env.num_obs,
-        gamma=0.99,
-        lmbda=0.0,
+        #gamma=0.99,
+        #lmbda=0.0,
         epsilon=0.1,
     )
     buffer = Buffer(
-        num_envs=num_envs,
+        num_envs=args.num_envs,
         obs_dim=env.num_obs,
         act_dim=env.num_actions,
-        max_length=steps_per_update,
+        max_length=config["training_cfg"]["steps_per_update"],
         device=device
     )
-    scales = {
-                "tracking_lin_vel_x": 1.0,
-                "tracking_ang_vel": 1.0,
-                "lin_vel_z": -1.0,
-                "lin_vel_y": -5.0,
-                "action_rate": -0.005,
-                "similar_to_default": -0.1,
-                "sideway_movement": -1.0,
-            }
 
-    reward_fn.scales = scales
     optim = torch.optim.Adam(policy.parameters(), lr=5e-4)
 
-    if start_update > 0:
-        print(f"Loading checkpoint from update {start_update}")
-        checkpoint = torch.load(f"{path}/checkpoints/go2_update_{start_update}.pt", map_location=device)
+    if args.start_update > 0:
+        print(f"Loading checkpoint from update {args.start_update}")
+        checkpoint = torch.load(f"{path}/checkpoints/go2_update_{args.start_update}.pt", map_location=device)
         policy.load_state_dict(checkpoint["model_state_dict"])
         optim.load_state_dict(checkpoint["optimizer_state_dict"])
-        # lin_vel_x = checkpoint['lin_vel_x']
-
-    for i in range(start_update, num_updates):
+        #lin_vel_x = checkpoint['lin_vel_x']
+    # Do not like the configuration here TODO: fix later
+    total_lin_reward = torch.zeros((20, config["training_cfg"]["steps_per_update"], args.num_envs, 1), device=device)
+    for i in range(args.start_update, args.num_updates):
         print(f"Running Sim: i: {i}")
         with torch.no_grad():
             buffer.reset()
             obs = env.reset()
             buffer.init_obs(obs, policy.get_value(obs))
-            for step in range(steps_per_update):
+            for step in range(config["training_cfg"]["steps_per_update"]):
                 obs = obs.to(device)
                 actions, value = policy.get_actions(obs)
                 log_probs, log_probs_value, entropy = policy.compute_log_probs(obs, actions)
@@ -102,14 +86,23 @@ def main():
                 if done.any():
                     obs = env.reset()
 
-            buffer.compute_returns_and_advantages(gamma=0.99, lmbda=0.95)
-        total_lin_reward, lin_vel_x = utils.adjust_motion_command(total_lin_reward, lin_vel_reward, i, lin_vel_x, path, env, buffer, optim=optim,
+            buffer.compute_returns_and_advantages(gamma=config["policy_cfg"]["gamma"],
+                                                  lmbda=config["policy_cfg"]["lmbda"])
+        total_lin_reward, lin_vel_x = utils.adjust_motion_command(total_lin_reward,
+                                                                  lin_vel_reward,
+                                                                  i,
+                                                                  lin_vel_x,
+                                                                  path,
+                                                                  env,
+                                                                  buffer,
+                                                                  optim=optim,
                                                             policy=policy)
         print(f"Running Epochs: i: {i}, Avg_reward: {buffer.rewards.mean():.3f}")
-        for epoch in range(update_epochs):
-            batch = buffer.get_batch(minibatch_size)
+        for epoch in range(config["training_cfg"]["update_epochs"]):
+            batch = buffer.get_batch(config["training_cfg"]["minibatch_size"])
 
-            log_probs_new, values_new, entropy = policy.compute_log_probs(batch['obs'], batch['actions'])
+            log_probs_new, values_new, entropy = policy.compute_log_probs(batch['obs'],
+                                                                          batch['actions'])
             # print(batch)
             critic_loss, actor_loss = policy.compute_loss(states=batch['obs'],
                                                           actions=batch['actions'],
@@ -146,4 +139,6 @@ def main():
     writer.close()
 
 if __name__ == "__main__":
-    main()
+    with open("config.json", "r") as f:
+        config = json.load(f)
+    main(config)

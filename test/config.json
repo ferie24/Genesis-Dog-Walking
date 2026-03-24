@@ -1,0 +1,34 @@
+{
+  "reward_cfg":
+  {
+    "tracking_lin_vel_x": 1.0,
+    "tracking_ang_vel": 1.0,
+    "lin_vel_z": -1.0,
+    "lin_vel_y": -5.0,
+    "action_rate": -0.005,
+    "similar_to_default": -0.1,
+    "sideway_movement": -1.0
+  },
+  "training_cfg" :
+  {
+    "steps_per_update" : 128,
+    "update_epochs" : 50,
+    "minibatch_size" : 512,
+    "learning_rate" : 0.00005
+  },
+  "env_cfg":
+  {
+    "movement": {
+      "lin_vel_x" : 0.4,
+      "lin_vel_y" : 0,
+      "lin_vel_yaw" : 0
+    },
+    "episode_length_s" : 20
+  },
+  "policy_cfg":
+  {
+    "gamma" : 0.99,
+    "lmbda" : 0.95,
+    "epsilon" : 0.1
+  }
+}
