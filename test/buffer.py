@@ -21,14 +21,14 @@ class Buffer:
         self.advantages = torch.zeros((max_length, num_envs, 1), device=device)
         self.returns = torch.zeros((max_length, num_envs, 1), device=device)
 
-
+        self.lin_vel_rewards = torch.zeros((max_length, num_envs, 1), device=device)
 
         self.steps = 0
 
     def reset(self):
         self.steps = 0
 
-    def add_step(self, obs, actions, log_probs, rewards, dones, values):
+    def add_step(self, obs, actions, log_probs, rewards, dones, values, lin_vel_rewards):
         if obs.shape[-1] != self.obs_dim:
             raise ValueError(f"obs dim {obs.shape} != {self.obs_dim}")
         if actions.shape[-1] != self.act_dim:
@@ -37,6 +37,7 @@ class Buffer:
         if log_probs.dim() == 1: log_probs = log_probs.unsqueeze(-1)
         if dones.dim() == 1: dones = dones.unsqueeze(-1).float()
         if values.dim() == 1: values = values.unsqueeze(-1)
+        if lin_vel_rewards.dim() == 1: lin_vel_rewards = lin_vel_rewards.unsqueeze(-1)
 
         t = self.steps
         self.steps += 1
@@ -47,6 +48,7 @@ class Buffer:
         self.log_probs[t].copy_(log_probs.detach())
         self.values[t].copy_(values.detach())
         self.dones[t].copy_(dones.detach())
+        self.lin_vel_rewards[t].copy_(lin_vel_rewards.detach())
 
     def init_obs(self, obs0, values0):
         self.obs[0] = obs0

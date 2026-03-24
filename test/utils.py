@@ -29,6 +29,7 @@ def make_eval_video(
                 actions = torch.clamp(actions, -1.0, 1.0)
 
             obs, reward, done, info = env.step(actions)
+            reward, _ = reward
             episode_reward += reward.mean().item()
 
             cam.render()

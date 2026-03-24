@@ -77,5 +77,4 @@ class Rewards:
                 - self.scales["sideway_movement"] * sideway_movement
                 #- self.scales["base_height"] * height
         )
-
-        return reward
+        return reward, tracking_lin_vel_x

@@ -233,34 +233,31 @@ class Go2WalkingEnv:
     def reset(self, env_ids=None):
         if env_ids is None:
             env_ids = torch.arange(self.num_envs, device=self.device)
-
+            
         self.episode_length_buf[env_ids] = 0
         self.reset_buf[env_ids] = False
-
-        # Per-env loop (SIMPLEST, works always)
-        for i, env_id in enumerate(env_ids):
-            # Single position for this env
-            pos = self.base_init_pos if self.base_init_pos.dim() == 1 else self.base_init_pos[0]
-            quat = np.array([1, 0, 0, 0])
-
-            self.robot.set_pos(pos.cpu().numpy(), zero_velocity=True, envs_idx=[env_id.item()])
-            self.robot.set_quat(quat, zero_velocity=True, envs_idx=[env_id.item()])
-
-            # Single dof pos for this env
-            dof_pos = self.default_dof_pos if self.default_dof_pos.dim() == 1 else self.default_dof_pos[0]
-            self.robot.set_dofs_position(
-                dof_pos.cpu().numpy(),
-                self.dof_indices,
-                zero_velocity=True,
-                envs_idx=[env_id.item()]
-            )
-
+        
+        # Vectorized reset (Fixes the teleport bug)
+        pos_batch = self.base_init_pos.expand(len(env_ids), -1)
+        quat_batch = self.base_init_quat.expand(len(env_ids), -1)
+        
+        self.robot.set_pos(pos_batch, zero_velocity=True, envs_idx=env_ids)
+        self.robot.set_quat(quat_batch, zero_velocity=True, envs_idx=env_ids)
+        
+        self.robot.set_dofs_position(
+            self.default_dof_pos[env_ids], 
+            self.dof_indices, 
+            zero_velocity=True, 
+            envs_idx=env_ids
+        )
+        
         self.actions[env_ids].zero_()
         self.last_actions[env_ids].zero_()
-
         self._update_state()
         self._compute_observations()
+        
         return self.obs_buf
+
 
     def step(self, actions):
         """
@@ -421,20 +418,24 @@ class Go2WalkingEnv:
         return self.reward_fn(obs, actions, info)
     
     def _check_termination(self):
-        """Check if any environments should terminate"""
-        # Terminate if robot falls over
+        # 1. Height check
         base_height = self.base_pos[:, 2]
         fall_termination = base_height < self.min_base_height
         
-        # Terminate if robot tips over too much
-        up_vec = transform_by_quat(
-            torch.tensor([0.0, 0.0, 1.0], device=self.device).repeat(self.num_envs, 1),
-            self.base_quat
-        )
-        # Tilt termination (dot with world up); higher threshold is stricter
-        tip_termination = up_vec[:, 2] < self.min_up_dot
+        # 2. Tilt check using projected gravity
+        # Transform world gravity [0, 0, -1] into the robot's local frame
+        gravity_vec = torch.tensor([0.0, 0.0, -1.0], device=self.device).repeat(self.num_envs, 1)
+        proj_gravity = transform_by_quat(gravity_vec, inv_quat(self.base_quat))
+        
+        # When perfectly upright, proj_gravity is [0, 0, -1] (so Z is -1.0)
+        # If it tips by 90 degrees, Z becomes 0.0.
+        # A threshold of -0.5 corresponds to a 60-degree tilt.
+        tip_termination = proj_gravity[:, 2] > -0.5
         
         return fall_termination | tip_termination
+
+
+
     
     def set_commands(self, lin_vel_x, lin_vel_y, ang_vel_yaw):
         """
