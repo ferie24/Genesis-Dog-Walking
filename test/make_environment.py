@@ -116,7 +116,7 @@ class Go2WalkingEnv:
                 camera_fov=40,
             ),
             vis_options=gs.options.VisOptions(
-                n_rendered_envs=1,
+                rendered_envs_idx=[0],
             ),
             rigid_options=gs.options.RigidOptions(
                 dt=self.dt,
@@ -278,13 +278,13 @@ class Go2WalkingEnv:
         # Apply actions to robot
         target_dof_pos = self.default_dof_pos + self.actions * 0.25  # Scale actions
         
-        for i in range(self.num_envs):
-            self.robot.control_dofs_position(
-                target_dof_pos[i],
-                self.dof_indices,
-                envs_idx=[i]
-            )
-        
+        #for i in range(self.num_envs):
+        #    self.robot.control_dofs_position(
+        #        target_dof_pos[i],
+        #        self.dof_indices,
+        #        envs_idx=[i]
+        #    )
+        self.robot.control_dofs_position(target_dof_pos, self.dof_indices)
         # Step simulation
         self.scene.step()
         
@@ -303,12 +303,18 @@ class Go2WalkingEnv:
         self.reset_buf |= self._check_termination()
         
         # Auto-reset finished environments
-        if self.reset_buf.any():
-            self.reset(self.reset_buf.nonzero(as_tuple=False).flatten())
+        #if self.reset_buf.any():
+        #    self.reset(self.reset_buf.nonzero(as_tuple=False).flatten())
         
         self.last_actions[:] = self.actions[:]
         
-        return self.obs_buf, rewards, self.reset_buf, {}
+        # Vor dem Reset eine Kopie ziehen
+        done_buf = self.reset_buf.clone()
+        if self.reset_buf.any():
+            self.reset(self.reset_buf.nonzero(as_tuple=False).flatten())
+
+        return self.obs_buf, rewards, done_buf, {}  
+
     
     def _update_state(self):
         """Refresh state buffers without device/alloc thrash."""
@@ -396,8 +402,9 @@ class Go2WalkingEnv:
             device=self.device,
             dtype=self.base_quat.dtype,
         ).repeat(self.num_envs, 1)
-
+        base_lin_vel_base = transform_by_quat(self.base_lin_vel, inv_quat(self.base_quat))
         info = {
+            "base_lin_vel_base": base_lin_vel_base,
             "base_vel": self.base_lin_vel,
             "base_ang_vel": self.base_ang_vel,
             "base_pos": self.base_pos,

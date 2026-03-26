@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/home/friemen/working_dir/Genesis-Dog-Walking/test/train.py", line 10, in <module>
+    gs.init(logging_level=logging.WARNING, backend=gs.cuda, show_viewer=False)
+TypeError: init() got an unexpected keyword argument 'show_viewer'
+

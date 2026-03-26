@@ -50,8 +50,8 @@ class Network(nn.Module):
         combined = self.shared(state)
         action_feats = self.actor(combined)
         action_mean = self.actor_mean(action_feats)
-        action_std = torch.exp(self.actor_logstd)
-
+        #action_std = torch.exp(self.actor_logstd)
+        action_std = torch.exp(torch.clamp(self.actor_logstd, -5.0, 2.0))
         value = self.critic(combined)
 
         return action_mean, action_std, value
@@ -79,16 +79,17 @@ class Network(nn.Module):
         raise NotImplementedError
 
     def compute_loss(self, states, actions, advantages, critic_targets, log_probs_old, returns):
-        critic_loss = F.mse_loss(critic_targets, returns)
 
-        log_probs_new, value, entropy = self.compute_log_probs(states, actions)
-        ratios = torch.exp(log_probs_new - log_probs_old)
+        log_probs_new, values_new, entropy = self.compute_log_probs(states, actions)
+
+        critic_loss = F.mse_loss(values_new.squeeze(-1), returns.squeeze(-1))
+        ratios = torch.exp(log_probs_new - log_probs_old.squeeze(-1))
 
         surr1 = ratios * advantages
         surr2 = torch.clamp(ratios, 1 - self.epsilon, 1 + self.epsilon) * advantages
         actor_loss = -torch.min(surr1, surr2).mean()
 
-        return critic_loss, actor_loss
+        return critic_loss, actor_loss, entropy.mean()
 
 
 

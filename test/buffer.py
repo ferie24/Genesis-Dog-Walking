@@ -64,10 +64,15 @@ class Buffer:
 
             self.advantages[t].copy_(advantages)
             self.returns[t].copy_(advantages + self.values[t])
-
+        # Normalize advantages and returns otherwise explode. 
         self.advantages[:self.steps] = ((
-                                self.advantages[:self.steps] - self.advantages[:self.steps].mean()) /
-                                        (self.advantages[:self.steps].std() + 1e-8))
+                    self.advantages[:self.steps] - self.advantages[:self.steps].mean()) /
+                    (self.advantages[:self.steps].std() + 1e-8)
+                    ) 
+        self.returns[:self.steps] = (
+                    (self.returns[:self.steps] - self.returns[:self.steps].mean()) /
+                    (self.returns[:self.steps].std() + 1e-8)
+                    )
 
     def get_batch(self, batch_size):
         indices = torch.randperm(self.steps * self.num_envs)[:batch_size]

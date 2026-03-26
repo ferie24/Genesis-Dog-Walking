@@ -1,10 +1,14 @@
 #!/bin/bash
-#SBATCH --job-name=Genesis_GO2_Dog_Training_FRiemen
+#SBATCH --job-name=genesis_training
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task =8
-#SBATCH --mem=8G
-#SBATCH --time=12:00:00
+#SBATCH --time=7:00:00
 #SBATCH --output=logs/%j.out
-#SBATCH --error=logs/%j.err
-python train.py
+
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate genesis
+export PYOPENGL_PLATFORM=egl
+export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
+
+cd ~/working_dir/Genesis-Dog-Walking/test
+python3 train.py -o run4

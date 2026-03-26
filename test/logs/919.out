@@ -1,0 +1,83 @@
+Running on: cuda
+[38;5;226m[Genesis] [08:20:09] [WARNING] Neutral robot position (qpos0) exceeds joint limits.[0m
+Number of environments: 4096, obs dim: 48, action dim: 12
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_0.mp4', 'episode_reward': 1051.5985699892044, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_100.mp4', 'episode_reward': 1056.6184760332108, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_200.mp4', 'episode_reward': 1043.509598016739, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_300.mp4', 'episode_reward': 1048.3057379722595, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_400.mp4', 'episode_reward': 1079.3452780246735, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_500.mp4', 'episode_reward': 1114.9095087051392, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_600.mp4', 'episode_reward': 1071.3466217517853, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_700.mp4', 'episode_reward': 100.50010204315186, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_800.mp4', 'episode_reward': 1171.1703563928604, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_900.mp4', 'episode_reward': 121.5460352897644, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_1000.mp4', 'episode_reward': 137.83762764930725, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_1100.mp4', 'episode_reward': 148.5497888326645, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_1200.mp4', 'episode_reward': 1223.5490407943726, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_1300.mp4', 'episode_reward': 1228.9723068475723, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_1400.mp4', 'episode_reward': 1203.6563682556152, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_1500.mp4', 'episode_reward': 1205.6754202842712, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_1600.mp4', 'episode_reward': 1235.0908290147781, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_1700.mp4', 'episode_reward': 1202.154096007347, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_1800.mp4', 'episode_reward': 1201.86598944664, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_1900.mp4', 'episode_reward': 1199.191732287407, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_2000.mp4', 'episode_reward': 1200.917313337326, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_2100.mp4', 'episode_reward': 1202.0364047288895, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_2200.mp4', 'episode_reward': 1199.8995509147644, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_2300.mp4', 'episode_reward': 1198.7555022239685, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_2400.mp4', 'episode_reward': 170.2111176252365, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_2500.mp4', 'episode_reward': 166.6344314813614, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_2600.mp4', 'episode_reward': 1187.2840564250946, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_2700.mp4', 'episode_reward': 1186.2122339010239, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_2800.mp4', 'episode_reward': 1182.5259370803833, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_2900.mp4', 'episode_reward': 1181.6351466178894, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_3000.mp4', 'episode_reward': 1176.7050422430038, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_3100.mp4', 'episode_reward': 1177.2742156982422, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_3200.mp4', 'episode_reward': 1173.2556067705154, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_3300.mp4', 'episode_reward': 223.97381818294525, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_3400.mp4', 'episode_reward': 1174.8814964294434, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_3500.mp4', 'episode_reward': 179.85266613960266, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_3600.mp4', 'episode_reward': 166.2891560792923, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_3700.mp4', 'episode_reward': 153.22523498535156, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_3800.mp4', 'episode_reward': 128.38155841827393, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run1/eval_update_3900.mp4', 'episode_reward': 112.26038372516632, 'steps': 600}

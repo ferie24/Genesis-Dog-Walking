@@ -1,0 +1,104 @@
+Running on: cuda
+[38;5;226m[Genesis] [07:35:28] [WARNING] Neutral robot position (qpos0) exceeds joint limits.[0m
+Exception in thread Thread-1:
+Traceback (most recent call last):
+  File "/home/friemen/miniconda3/envs/genesis/lib/python3.10/threading.py", line 1016, in _bootstrap_inner
+    self.run()
+  File "/home/friemen/miniconda3/envs/genesis/lib/python3.10/site-packages/tensorboard/summary/writer/event_file_writer.py", line 244, in run
+    self._run()
+  File "/home/friemen/miniconda3/envs/genesis/lib/python3.10/site-packages/tensorboard/summary/writer/event_file_writer.py", line 275, in _run
+    self._record_writer.write(data)
+  File "/home/friemen/miniconda3/envs/genesis/lib/python3.10/site-packages/tensorboard/summary/writer/record_writer.py", line 40, in write
+    self._writer.write(header + header_crc + data + footer_crc)
+  File "/home/friemen/miniconda3/envs/genesis/lib/python3.10/site-packages/tensorboard/compat/tensorflow_stub/io/gfile.py", line 775, in write
+Number of environments: 4096, obs dim: 48, action dim: 12
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_0.mp4', 'episode_reward': 1076.398973584175, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_100.mp4', 'episode_reward': 141.63613951206207, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_200.mp4', 'episode_reward': 147.2074397802353, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_300.mp4', 'episode_reward': 144.70788717269897, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_400.mp4', 'episode_reward': 124.98648512363434, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_500.mp4', 'episode_reward': 108.07439005374908, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_600.mp4', 'episode_reward': 138.9982316493988, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_700.mp4', 'episode_reward': 123.39869606494904, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_800.mp4', 'episode_reward': 128.42089080810547, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_900.mp4', 'episode_reward': 115.96242380142212, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_1000.mp4', 'episode_reward': 107.54992699623108, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_1100.mp4', 'episode_reward': 93.17940962314606, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_1200.mp4', 'episode_reward': 111.79457330703735, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_1300.mp4', 'episode_reward': 113.79333031177521, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_1400.mp4', 'episode_reward': 112.05545043945312, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_1500.mp4', 'episode_reward': 103.44472706317902, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_1600.mp4', 'episode_reward': 106.4112560749054, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_1700.mp4', 'episode_reward': 99.08109223842621, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_1800.mp4', 'episode_reward': 99.86215662956238, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_1900.mp4', 'episode_reward': 99.43507540225983, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_2000.mp4', 'episode_reward': 89.883127450943, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_2100.mp4', 'episode_reward': 89.02400231361389, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_2200.mp4', 'episode_reward': 97.34447908401489, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_2300.mp4', 'episode_reward': 98.22696840763092, 'steps': 600}
+None
+{'video_path': '/home/friemen/working_dir/Genesis-Dog-Walking/test/video/run2/eval_update_2400.mp4', 'episode_reward': 89.40806412696838, 'steps': 600}
+    self.fs.append(self.filename, file_content, self.binary_mode)
+  File "/home/friemen/miniconda3/envs/genesis/lib/python3.10/site-packages/tensorboard/compat/tensorflow_stub/io/gfile.py", line 167, in append
+    self._write(filename, file_content, "ab" if binary_mode else "a")
+  File "/home/friemen/miniconda3/envs/genesis/lib/python3.10/site-packages/tensorboard/compat/tensorflow_stub/io/gfile.py", line 171, in _write
+    with io.open(filename, mode, encoding=encoding) as f:
+FileNotFoundError: [Errno 2] No such file or directory: b'runs/run2/events.out.tfevents.1774510523.tujestpolin.1196527.0'
+Traceback (most recent call last):
+  File "/home/friemen/working_dir/Genesis-Dog-Walking/test/train.py", line 143, in <module>
+    with open("config.json", "r") as f:
+  File "/home/friemen/working_dir/Genesis-Dog-Walking/test/train.py", line 120, in main
+    writer.add_scalar("loss", loss.item(), i)
+  File "/home/friemen/miniconda3/envs/genesis/lib/python3.10/site-packages/torch/utils/tensorboard/writer.py", line 389, in add_scalar
+    self._get_file_writer().add_summary(summary, global_step, walltime)
+  File "/home/friemen/miniconda3/envs/genesis/lib/python3.10/site-packages/torch/utils/tensorboard/writer.py", line 115, in add_summary
+    self.add_event(event, global_step, walltime)
+  File "/home/friemen/miniconda3/envs/genesis/lib/python3.10/site-packages/torch/utils/tensorboard/writer.py", line 99, in add_event
+    self.event_writer.add_event(event)
+  File "/home/friemen/miniconda3/envs/genesis/lib/python3.10/site-packages/tensorboard/summary/writer/event_file_writer.py", line 117, in add_event
+    self._async_writer.write(event.SerializeToString())
+  File "/home/friemen/miniconda3/envs/genesis/lib/python3.10/site-packages/tensorboard/summary/writer/event_file_writer.py", line 171, in write
+    self._check_worker_status()
+  File "/home/friemen/miniconda3/envs/genesis/lib/python3.10/site-packages/tensorboard/summary/writer/event_file_writer.py", line 212, in _check_worker_status
+    raise exception
+  File "/home/friemen/miniconda3/envs/genesis/lib/python3.10/threading.py", line 1016, in _bootstrap_inner
+    self.run()
+  File "/home/friemen/miniconda3/envs/genesis/lib/python3.10/site-packages/tensorboard/summary/writer/event_file_writer.py", line 244, in run
+    self._run()
+  File "/home/friemen/miniconda3/envs/genesis/lib/python3.10/site-packages/tensorboard/summary/writer/event_file_writer.py", line 275, in _run
+    self._record_writer.write(data)
+  File "/home/friemen/miniconda3/envs/genesis/lib/python3.10/site-packages/tensorboard/summary/writer/record_writer.py", line 40, in write
+    self._writer.write(header + header_crc + data + footer_crc)
+  File "/home/friemen/miniconda3/envs/genesis/lib/python3.10/site-packages/tensorboard/compat/tensorflow_stub/io/gfile.py", line 775, in write
+    self.fs.append(self.filename, file_content, self.binary_mode)
+  File "/home/friemen/miniconda3/envs/genesis/lib/python3.10/site-packages/tensorboard/compat/tensorflow_stub/io/gfile.py", line 167, in append
+    self._write(filename, file_content, "ab" if binary_mode else "a")
+  File "/home/friemen/miniconda3/envs/genesis/lib/python3.10/site-packages/tensorboard/compat/tensorflow_stub/io/gfile.py", line 171, in _write
+    with io.open(filename, mode, encoding=encoding) as f:
+FileNotFoundError: [Errno 2] No such file or directory: b'runs/run2/events.out.tfevents.1774510523.tujestpolin.1196527.0'
+
+[38;5;9m[Genesis] [08:45:59] [ERROR] FileNotFoundError: [Errno 2] No such file or directory: b'runs/run2/events.out.tfevents.1774510523.tujestpolin.1196527.0'[0m

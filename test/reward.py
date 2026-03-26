@@ -3,7 +3,7 @@ import torch
 class Rewards:
     def __init__(self, tracking_sigma=0.25, scales=None):
         self.tracking_sigma = tracking_sigma
-        self.scales = {
+        """self.scales = {
             "tracking_lin_vel_x": 1.5,
             "tracking_ang_vel": 0.5,
             "x_progress": 0.5,
@@ -14,13 +14,16 @@ class Rewards:
             "termination": 1.0,
             "sideway_movement": 0.1,
             "base_height": 0.1,
-        }
-        if scales is not None:
-            self.scales.update(scales)
+        }"""
+        self.scales = scales
+        #if scales is not None:
+        #    self.scales.update(scales)
 
 
-    def __call__(self, obs, actions, info, tracking_sigma=0.25):
-        base_vel = info["base_vel"]
+    def __call__(self, obs, actions, info):
+        base_vel = info["base_lin_vel_base"]
+        #base_lin_vel_base = info["base_lin_vel_base"]
+        
         base_ang_vel = info["base_ang_vel"]
         base_pos = info["base_pos"]
         base_init_pos = info["base_init_pos"]
@@ -34,11 +37,12 @@ class Rewards:
         base_height = info["base_height"]
 
         tracking_lin_vel_x = torch.exp(
-            -torch.square(commands[:, 0] - base_vel[:, 0]) / tracking_sigma
+            -torch.square(commands[:, 0] - base_vel[:, 0]) / self.tracking_sigma
         )
+        
 
         tracking_ang_vel = torch.exp(
-            -torch.abs(commands[:, 2] - base_ang_vel[:, 2]) / tracking_sigma
+            -torch.abs(commands[:, 2] - base_ang_vel[:, 2]) / self.tracking_sigma
         )
 
         lin_vel_z = torch.square(base_vel[:, 2])
