@@ -1,5 +1,9 @@
 *.pyc
+*.ipynb
 *.pth
+*.DS_Store
+*.csv
+/test/.ipynb_checkpoints
 *.cpython-311.pyc
 */__pycache__/*
 */checkpoints_videos/*
