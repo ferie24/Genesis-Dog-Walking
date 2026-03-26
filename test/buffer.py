@@ -77,7 +77,7 @@ class Buffer:
     def get_batch(self, batch_size):
         indices = torch.randperm(self.steps * self.num_envs)[:batch_size]
         batch = dict(
-            obs=self.obs[:-1].reshape(-1, self.obs_dim)[indices].clone().detach(),  # ← CRITICAL
+            obs=self.obs[:-1].reshape(-1, self.obs_dim)[indices].clone().detach(),
             actions=self.actions.reshape(-1, self.act_dim)[indices].clone().detach(),
             log_probs=self.log_probs.reshape(-1, 1)[indices].clone().detach(),
             advantages=self.advantages.reshape(-1, 1)[indices].clone().detach(),

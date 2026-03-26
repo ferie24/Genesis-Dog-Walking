@@ -19,7 +19,7 @@ def main(config):
     parser = argparse.ArgumentParser()
     parser.add_argument("-e", "--num_envs", type=int, default=4096)
     parser.add_argument("-u", "--num_updates", type=int, default=4000)
-    parser.add_argument("-b", "--batch_size", type=int, default=64)
+    parser.add_argument("-b", "--num_batches", type=int, default=4)
     parser.add_argument("-lr", "--learning_rate", type=float, default=0.01)
     parser.add_argument("-g", "--gamma", type=float, default=0.99)
     parser.add_argument("-r", "--start_update", type=int, default=0)
@@ -31,6 +31,9 @@ def main(config):
     print(f"Running on: {device}")
     lin_vel_x = config["env_cfg"]["movement"]["lin_vel_x"]
     writer = SummaryWriter(f"runs/{args.run_name}")
+
+    
+    minibatch_size = (config['training_cfg']['steps_per_update'] * args.num_envs) // args.num_batches
 
     env = Go2WalkingEnv(
         num_envs=args.num_envs,
@@ -98,7 +101,7 @@ def main(config):
                                                             policy=policy)
         #print(f"Running Epochs: i: {i}, Avg_reward: {buffer.rewards.mean():.3f}")
         for epoch in range(config["training_cfg"]["update_epochs"]):
-            batch = buffer.get_batch(config["training_cfg"]["minibatch_size"])
+            batch = buffer.get_batch(minibatch_size)
 
             #log_probs_new, values_new, entropy = policy.compute_log_probs(batch['obs'],
             #                                                              batch['actions'])

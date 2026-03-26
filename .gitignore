@@ -6,3 +6,8 @@
 /test/checkpoints/*
 /test/video/*
 /test/videos/*
+/test/checkpoints_videos/*
+/test/checkpoints_test_run
+/test/runs
+/test/logs
+/test/checkpoints
