@@ -99,30 +99,27 @@ def main(config):
                                                             policy=policy)
         #print(f"Running Epochs: i: {i}, Avg_reward: {buffer.rewards.mean():.3f}")
         for epoch in range(config["training_cfg"]["update_epochs"]):
-            batch = buffer.get_batch(minibatch_size)
+            for batch in buffer.get_minibatches(args.num_batches):
 
-            #log_probs_new, values_new, entropy = policy.compute_log_probs(batch['obs'],
-            #                                                              batch['actions'])
-            # print(batch)
-            critic_loss, actor_loss, entropy = policy.compute_loss(states=batch['obs'],
-                                                                   actions=batch['actions'],
-                                                                   advantages=batch['advantages'],
-                                                                   critic_targets=batch['returns'],
-                                                          log_probs_old=batch['log_probs'],
-                                                          returns=batch['returns'], )
-            entropy_loss = -0.01 * entropy.mean()
+                critic_loss, actor_loss, entropy = policy.compute_loss(states=batch['obs'],
+                                                                    actions=batch['actions'],
+                                                                    advantages=batch['advantages'],
+                                                                    critic_targets=batch['returns'],
+                                                            log_probs_old=batch['log_probs'],
+                                                            returns=batch['returns'], )
+                entropy_loss = -0.05 * entropy.mean()
 
-            loss = actor_loss + 0.5 * critic_loss + entropy_loss
+                loss = actor_loss + critic_loss + entropy_loss
 
-            optim.zero_grad()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(policy.parameters(), 0.5)  # gradient clipping
-            optim.step()
-            writer.add_scalar("loss", loss.item(), i)
-            writer.add_scalar("actor_loss", actor_loss.item(), i)
-            writer.add_scalar("critic_loss", critic_loss.item(), i)
-            writer.add_scalar("entropy_loss", entropy_loss.item(), i)
-            writer.add_scalar("avg_reward", buffer.rewards.mean().item(), i)
+                optim.zero_grad()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(policy.parameters(), 0.5)  # gradient clipping
+                optim.step()
+        writer.add_scalar("loss", loss.item(), i)
+        writer.add_scalar("actor_loss", actor_loss.item(), i)
+        writer.add_scalar("critic_loss", critic_loss.item(), i)
+        writer.add_scalar("entropy_loss", entropy_loss.item(), i)
+        writer.add_scalar("avg_reward", buffer.rewards.mean().item(), i)
             
 
         if i % 100 == 0:
