@@ -32,9 +32,6 @@ def main(config):
     lin_vel_x = config["env_cfg"]["movement"]["lin_vel_x"]
     writer = SummaryWriter(f"runs/{args.run_name}")
 
-    
-    minibatch_size = (config['training_cfg']['steps_per_update'] * args.num_envs) // args.num_batches
-
     env = Go2WalkingEnv(
         num_envs=args.num_envs,
         device=device,
@@ -68,10 +65,10 @@ def main(config):
         policy.load_state_dict(checkpoint["model_state_dict"])
         optim.load_state_dict(checkpoint["optimizer_state_dict"])
         #lin_vel_x = checkpoint['lin_vel_x']
+        
     # Do not like the configuration here TODO: fix later
     total_lin_reward = torch.zeros((20, config["training_cfg"]["steps_per_update"], args.num_envs, 1), device=device)
     for i in range(args.start_update, args.num_updates):
-        #print(f"Running Sim: i: {i}")
         with torch.no_grad():
             buffer.reset()
             obs = env.reset()
@@ -97,14 +94,12 @@ def main(config):
                                                                   buffer,
                                                                   optim=optim,
                                                             policy=policy)
-        #print(f"Running Epochs: i: {i}, Avg_reward: {buffer.rewards.mean():.3f}")
         for epoch in range(config["training_cfg"]["update_epochs"]):
             for batch in buffer.get_minibatches(args.num_batches):
 
                 critic_loss, actor_loss, entropy = policy.compute_loss(states=batch['obs'],
                                                                     actions=batch['actions'],
                                                                     advantages=batch['advantages'],
-                                                                    critic_targets=batch['returns'],
                                                             log_probs_old=batch['log_probs'],
                                                             returns=batch['returns'], )
                 entropy_loss = -0.05 * entropy.mean()

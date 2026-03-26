@@ -278,12 +278,6 @@ class Go2WalkingEnv:
         # Apply actions to robot
         target_dof_pos = self.default_dof_pos + self.actions * 0.25  # Scale actions
         
-        #for i in range(self.num_envs):
-        #    self.robot.control_dofs_position(
-        #        target_dof_pos[i],
-        #        self.dof_indices,
-        #        envs_idx=[i]
-        #    )
         self.robot.control_dofs_position(target_dof_pos, self.dof_indices)
         # Step simulation
         self.scene.step()
@@ -301,10 +295,6 @@ class Go2WalkingEnv:
         # Check for resets
         self.reset_buf = self.episode_length_buf >= self.max_episode_length
         self.reset_buf |= self._check_termination()
-        
-        # Auto-reset finished environments
-        #if self.reset_buf.any():
-        #    self.reset(self.reset_buf.nonzero(as_tuple=False).flatten())
         
         self.last_actions[:] = self.actions[:]
         
@@ -390,8 +380,6 @@ class Go2WalkingEnv:
             self.dof_vel * 0.05,               # 12
             self.actions,                      # 12
         ], dim=-1)
-
-        #print(obs)
         self.obs_buf[:] = obs
     
     def _compute_rewards(self):
@@ -403,7 +391,7 @@ class Go2WalkingEnv:
             dtype=self.base_quat.dtype,
         ).repeat(self.num_envs, 1)
         base_lin_vel_base = transform_by_quat(self.base_lin_vel, inv_quat(self.base_quat))
-        info = {
+        info = { # TODO: clean up info dict
             "base_lin_vel_base": base_lin_vel_base,
             "base_vel": self.base_lin_vel,
             "base_ang_vel": self.base_ang_vel,

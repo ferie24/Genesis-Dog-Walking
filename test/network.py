@@ -7,8 +7,6 @@ import torch.nn.functional as F
 class Network(nn.Module):
     def __init__(self, num_inputs,
                  num_outputs,
-                 #gamma,
-                 #lmbda,
                  epsilon):
         """
         Network constructor.
@@ -17,14 +15,6 @@ class Network(nn.Module):
         super().__init__()
         num_states = num_inputs
         num_actions = num_outputs
-        #self.shared = nn.Sequential(
-        ##    nn.Linear(num_states, 512),
-        #    nn.ELU(),  # Or ReLU; ELU common in locomotion
-        #    nn.Linear(512, 256),
-        #    nn.ELU(),
-        #    nn.Linear(256, 128),
-        #    nn.ELU()
-        #)
 
         # Actor head (continuous actions, e.g., torques)
         self.actor = nn.Sequential(
@@ -54,8 +44,6 @@ class Network(nn.Module):
             nn.Linear(64, 1)
         )
 
-        #self.gamma = gamma
-        #self.lmbda = lmbda
         self.epsilon = epsilon
         self._init_weights()
 
@@ -84,8 +72,7 @@ class Network(nn.Module):
         return actions, value
 
     def get_value(self, state):
-
-        action_mean, action_std, value = self.forward(state)
+        _, _, value = self.forward(state)
         return value
 
     def compute_log_probs(self, states, actions):
@@ -95,10 +82,7 @@ class Network(nn.Module):
         entropy = dist.entropy().sum(dim=-1)
         return log_probs, value, entropy
 
-    def compute_advantages(self, states, rewards, next_states, dones):
-        raise NotImplementedError
-
-    def compute_loss(self, states, actions, advantages, critic_targets, log_probs_old, returns):
+    def compute_loss(self, states, actions, advantages, log_probs_old, returns):
 
         log_probs_new, values_new, entropy = self.compute_log_probs(states, actions)
 

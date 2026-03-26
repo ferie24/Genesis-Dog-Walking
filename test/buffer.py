@@ -90,15 +90,15 @@ class Buffer:
         total_size = self.steps * self.num_envs
 
         # Einmal reshapen, einmal permutieren
-        obs       = self.obs[:-1].reshape(-1, self.obs_dim).detach()
-        actions   = self.actions.reshape(-1, self.act_dim).detach()
+        obs = self.obs[:-1].reshape(-1, self.obs_dim).detach()
+        actions = self.actions.reshape(-1, self.act_dim).detach()
         log_probs = self.log_probs.reshape(-1, 1).detach()
-        advantages= self.advantages.reshape(-1, 1).detach()
-        returns   = self.returns.reshape(-1, 1).detach()
-        values    = self.values.reshape(-1, 1).detach()
+        advantages = self.advantages.reshape(-1, 1).detach()
+        returns = self.returns.reshape(-1, 1).detach()
+        values = self.values.reshape(-1, 1).detach()
 
-        indices    = torch.randperm(total_size, device=self.device)
-        batch_size = total_size // num_minibatches  # ✅ intern berechnet
+        indices = torch.randperm(total_size, device=self.device)
+        batch_size = total_size // num_minibatches  
 
         for start in range(0, num_minibatches * batch_size, batch_size):
             idx = indices[start : start + batch_size]
