@@ -17,17 +17,23 @@ class Network(nn.Module):
         super().__init__()
         num_states = num_inputs
         num_actions = num_outputs
-        self.shared = nn.Sequential(
+        #self.shared = nn.Sequential(
+        ##    nn.Linear(num_states, 512),
+        #    nn.ELU(),  # Or ReLU; ELU common in locomotion
+        #    nn.Linear(512, 256),
+        #    nn.ELU(),
+        #    nn.Linear(256, 128),
+        #    nn.ELU()
+        #)
+
+        # Actor head (continuous actions, e.g., torques)
+        self.actor = nn.Sequential(
             nn.Linear(num_states, 512),
             nn.ELU(),  # Or ReLU; ELU common in locomotion
             nn.Linear(512, 256),
             nn.ELU(),
             nn.Linear(256, 128),
-            nn.ELU()
-        )
-
-        # Actor head (continuous actions, e.g., torques)
-        self.actor = nn.Sequential(
+            nn.ELU(),
             nn.Linear(128, 64),
             nn.ELU(),
             nn.Linear(64, 32),# Normalize actions to [-1,1]; scale in forward if needed
@@ -37,6 +43,12 @@ class Network(nn.Module):
 
         # Critic head (value estimate)
         self.critic = nn.Sequential(
+            nn.Linear(num_states, 512),
+            nn.ELU(),  # Or ReLU; ELU common in locomotion
+            nn.Linear(512, 256),
+            nn.ELU(),
+            nn.Linear(256, 128),
+            nn.ELU(),
             nn.Linear(128, 64),
             nn.ELU(),
             nn.Linear(64, 1)
@@ -45,15 +57,23 @@ class Network(nn.Module):
         #self.gamma = gamma
         #self.lmbda = lmbda
         self.epsilon = epsilon
+        self._init_weights()
+
+    def _init_weights(self):
+        # Actor-Mean-Output normal initialisieren
+        nn.init.orthogonal_(self.actor_mean.weight, gain=0.01)
+        nn.init.zeros_(self.actor_mean.bias)
+        # Critic-Output normal initialisieren
+        for net in [self.actor, self.critic]:
+            for layer in net:
+                if isinstance(layer, nn.Linear):
+                    nn.init.orthogonal_(layer.weight, gain=1.0)
+                    nn.init.zeros_(layer.bias)
 
     def forward(self, state):
-        combined = self.shared(state)
-        action_feats = self.actor(combined)
-        action_mean = self.actor_mean(action_feats)
-        #action_std = torch.exp(self.actor_logstd)
-        action_std = torch.exp(torch.clamp(self.actor_logstd, -5.0, 2.0))
-        value = self.critic(combined)
-
+        action_mean = self.actor_mean(self.actor(state))
+        action_std = torch.exp(torch.clamp(self.actor_logstd, -5.0, 2.0)) 
+        value = self.critic(state)
         return action_mean, action_std, value
 
     def get_actions(self, state):
