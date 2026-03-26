@@ -62,7 +62,7 @@ def main(config):
         device=device
     )
 
-    optim = torch.optim.Adam(policy.parameters(), lr=5e-4)
+    optim = torch.optim.Adam(policy.parameters(), lr=config["training_cfg"]["learning_rate"])
 
     if args.start_update > 0:
         print(f"Loading checkpoint from update {args.start_update}")
