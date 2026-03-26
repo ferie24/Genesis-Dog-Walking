@@ -41,7 +41,7 @@ def main(config):
         show_viewer=False,
         use_terrain=False,
         episode_length_s=config["env_cfg"]["episode_length_s"],
-        reward_fn=Rewards(scales=config["reward_cfg"]),
+        reward_fn=Rewards(scales=config["reward_cfg"], tracking_sigma=config["reward_cfg"]["tracking_sigma"]),
     )
     print(f"Number of environments: {env.num_envs}, obs dim: {env.num_obs}, action dim: {env.num_actions}")
     env.set_commands(lin_vel_x=lin_vel_x,
@@ -50,9 +50,7 @@ def main(config):
     policy = Network(
         num_outputs=env.num_actions,
         num_inputs=env.num_obs,
-        #gamma=0.99,
-        #lmbda=0.0,
-        epsilon=0.1,
+        epsilon=config["policy_cfg"]["epsilon"],
     )
     buffer = Buffer(
         num_envs=args.num_envs,
