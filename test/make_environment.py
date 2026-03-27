@@ -75,7 +75,7 @@ class Go2WalkingEnv:
 
         # PD controller gains
         self.kp = 20.0
-        self.kd = 0.5
+        self.kd = 1.0 #0.5
         
         self.reward_fn = reward_fn if reward_fn is not None else lambda obs, actions, info: torch.zeros(self.num_envs, device=self.device)
 

@@ -75,12 +75,14 @@ def main(config):
             buffer.init_obs(obs, policy.get_value(obs))
             for step in range(config["training_cfg"]["steps_per_update"]):
                 obs = obs.to(device)
-                actions, value = policy.get_actions(obs)
+                obs_norm = buffer.normalize_obs(obs)
+                actions, value = policy.get_actions(obs_norm)
                 log_probs, log_probs_value, entropy = policy.compute_log_probs(obs, actions)
                 next_obs, reward, done, info = env.step(actions)
                 reward, lin_vel_reward = reward
+                buffer.update_obs_stats(next_obs)
                 buffer.add_step(next_obs, actions, log_probs, reward, done, value, lin_vel_reward)
-
+                
                 obs = next_obs
 
             buffer.compute_returns_and_advantages(gamma=config["policy_cfg"]["gamma"],

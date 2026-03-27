@@ -54,7 +54,7 @@ class Buffer:
         self.values[t].copy_(values.detach())
         self.dones[t].copy_(dones.detach())
         self.lin_vel_rewards[t].copy_(lin_vel_rewards.detach())
-        self.update_obs_stats(obs.detach())
+        #self.update_obs_stats(obs.detach())
 
     def init_obs(self, obs0, values0):
         self.obs[0] = obs0
@@ -71,7 +71,7 @@ class Buffer:
         self.obs_count = total
 
     def normalize_obs(self, obs):
-        return (obs - self.obs_mean) / (self.obs_var.sqrt() + 1e-8).clamp(-5, 5)
+        return ((obs - self.obs_mean) / (self.obs_var.sqrt() + 1e-8)).clamp(-5, 5)
 
     def compute_returns_and_advantages(self, gamma, lmbda):
         advantages = torch.zeros((self.num_envs, 1), device=self.device)
@@ -88,10 +88,10 @@ class Buffer:
                     self.advantages[:self.steps] - self.advantages[:self.steps].mean()) /
                     (self.advantages[:self.steps].std() + 1e-8)
                     ) 
-        self.returns[:self.steps] = (
-                    (self.returns[:self.steps] - self.returns[:self.steps].mean()) /
-                    (self.returns[:self.steps].std() + 1e-8)
-                    )
+        #self.returns[:self.steps] = (
+        #            (self.returns[:self.steps] - self.returns[:self.steps].mean()) /
+        #            (self.returns[:self.steps].std() + 1e-8)
+        #            )
 
     def get_batch(self, batch_size):
         indices = torch.randperm(self.steps * self.num_envs)[:batch_size]
