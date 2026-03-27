@@ -25,6 +25,10 @@ class Buffer:
 
         self.steps = 0
 
+        self.obs_mean  = torch.zeros(obs_dim, device=device)
+        self.obs_var   = torch.ones(obs_dim, device=device)
+        self.obs_count = torch.tensor(1e-4, device=device)
+
     def reset(self):
         self.steps = 0
 
@@ -42,17 +46,32 @@ class Buffer:
         t = self.steps
         self.steps += 1
         # In Buffer.add_step
-        self.obs[t + 1].copy_(obs.detach())
+        self.obs[t + 1].copy_(
+            self.normalize_obs(obs.detach()))
         self.actions[t].copy_(actions.detach())
         self.rewards[t].copy_(rewards)
         self.log_probs[t].copy_(log_probs.detach())
         self.values[t].copy_(values.detach())
         self.dones[t].copy_(dones.detach())
         self.lin_vel_rewards[t].copy_(lin_vel_rewards.detach())
+        self.update_obs_stats(obs.detach())
 
     def init_obs(self, obs0, values0):
         self.obs[0] = obs0
         self.values[0] = values0
+    
+    def update_obs_stats(self, obs):
+        """Aufruf einmal pro Step im Rollout"""
+        batch_mean  = obs.mean(dim=0)
+        batch_var   = obs.var(dim=0)
+        batch_count = obs.shape[0]
+        total = self.obs_count + batch_count
+        self.obs_mean = (self.obs_count * self.obs_mean + batch_count * batch_mean) / total
+        self.obs_var  = (self.obs_count * self.obs_var  + batch_count * batch_var)  / total
+        self.obs_count = total
+
+    def normalize_obs(self, obs):
+        return (obs - self.obs_mean) / (self.obs_var.sqrt() + 1e-8).clamp(-5, 5)
 
     def compute_returns_and_advantages(self, gamma, lmbda):
         advantages = torch.zeros((self.num_envs, 1), device=self.device)
