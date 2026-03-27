@@ -104,14 +104,34 @@ def main(config):
                                                                     advantages=batch['advantages'],
                                                             log_probs_old=batch['log_probs'],
                                                             returns=batch['returns'], )
-                entropy_loss = -0.05 * entropy.mean()
+                entropy_loss = -0.01 * entropy.mean()
 
                 loss = actor_loss + critic_loss + entropy_loss
 
                 optim.zero_grad()
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(policy.parameters(), 0.5)  # gradient clipping
+                torch.nn.utils.clip_grad_norm_(policy.parameters(), 1.0)  # gradient clipping
                 optim.step()
+        
+        # nach den Update-Epochs in train.py:
+        desired_kl = 0.01
+        with torch.no_grad():
+            # KL zwischen alter und neuer Policy berechnen
+            log_probs_new, _, _ = policy.compute_log_probs(batch['obs'], batch['actions'])
+            kl = (batch['log_probs'].squeeze() - log_probs_new).mean()
+
+        if kl > 2.0 * desired_kl:
+            lr = max(lr / 1.5, 1e-4)
+        elif kl < 0.5 * desired_kl:
+            lr = min(lr * 1.5, 1e-2)
+
+        for param_group in optim.param_groups:
+            param_group['lr'] = lr
+
+        writer.add_scalar("learning_rate", lr, i)
+        writer.add_scalar("kl_divergence", kl.item(), i)
+
+
         writer.add_scalar("loss", loss.item(), i)
         writer.add_scalar("actor_loss", actor_loss.item(), i)
         writer.add_scalar("critic_loss", critic_loss.item(), i)

@@ -15,3 +15,4 @@
 /test/runs
 /test/logs
 /test/checkpoints
+/test/train_script.sh
