@@ -72,16 +72,22 @@ def main(config):
         with torch.no_grad():
             buffer.reset()
             obs = env.reset()
-            buffer.init_obs(obs, policy.get_value(obs))
+            buffer.update_obs_stats(obs)
+            obs_norm = buffer.normalize_obs(obs)
+            buffer.init_obs(obs_norm, policy.get_value(obs_norm))
             for step in range(config["training_cfg"]["steps_per_update"]):
                 obs = obs.to(device)
                 obs_norm = buffer.normalize_obs(obs)
                 actions, value = policy.get_actions(obs_norm)
-                log_probs, log_probs_value, entropy = policy.compute_log_probs(obs, actions)
+                log_probs, _, _ = policy.compute_log_probs(obs_norm, actions)
+                _, mu, sigma    = policy.forward(obs_norm) 
                 next_obs, reward, done, info = env.step(actions)
                 reward, lin_vel_reward = reward
-                buffer.update_obs_stats(next_obs)
-                buffer.add_step(next_obs, actions, log_probs, reward, done, value, lin_vel_reward)
+                next_obs_clean = next_obs.clone()
+                if torch.isnan(next_obs_clean).any():
+                    next_obs_clean[torch.isnan(next_obs_clean).any(dim=-1)] = 0.0
+                buffer.update_obs_stats(next_obs_clean) 
+                buffer.add_step(next_obs_clean, actions, log_probs, reward, done, value, lin_vel_reward, mu, sigma)
                 
                 obs = next_obs
 
@@ -96,14 +102,20 @@ def main(config):
                                                                   buffer,
                                                                   optim=optim,
                                                             policy=policy)
+        desired_kl = 0.01
+        lr = optim.param_groups[0]['lr']
+        stop_early = False
         for epoch in range(config["training_cfg"]["update_epochs"]):
+            if stop_early:
+                break
             for batch in buffer.get_minibatches(args.num_batches):
 
-                critic_loss, actor_loss, entropy = policy.compute_loss(states=batch['obs'],
-                                                                    actions=batch['actions'],
-                                                                    advantages=batch['advantages'],
-                                                            log_probs_old=batch['log_probs'],
-                                                            returns=batch['returns'], )
+                critic_loss, actor_loss, entropy, kl = policy.compute_loss(
+                                        states=batch['obs'], actions=batch['actions'],
+                                        advantages=batch['advantages'], log_probs_old=batch['log_probs'],
+                                        returns=batch['returns'],
+                                        old_mu=batch['mu'], old_sigma=batch['sigma']     # ← übergeben
+                                    )
                 entropy_loss = -0.01 * entropy.mean()
 
                 loss = actor_loss + critic_loss + entropy_loss
@@ -112,14 +124,13 @@ def main(config):
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(policy.parameters(), 1.0)  # gradient clipping
                 optim.step()
+                with torch.no_grad():
+                    lp_new, _, _ = policy.compute_log_probs(batch['obs'], batch['actions'])
+                    kl = (batch['log_probs'].squeeze() - lp_new).mean().item()
+                if kl > 2.0 * desired_kl:
+                    stop_early = True
+                    break
         
-        # nach den Update-Epochs in train.py:
-        desired_kl = 0.01
-        with torch.no_grad():
-            # KL zwischen alter und neuer Policy berechnen
-            log_probs_new, _, _ = policy.compute_log_probs(batch['obs'], batch['actions'])
-            kl = (batch['log_probs'].squeeze() - log_probs_new).mean()
-
         if kl > 2.0 * desired_kl:
             lr = max(lr / 1.5, 1e-4)
         elif kl < 0.5 * desired_kl:
@@ -129,7 +140,7 @@ def main(config):
             param_group['lr'] = lr
 
         writer.add_scalar("learning_rate", lr, i)
-        writer.add_scalar("kl_divergence", kl.item(), i)
+        writer.add_scalar("kl_divergence", kl, i)
 
 
         writer.add_scalar("loss", loss.item(), i)
@@ -140,12 +151,12 @@ def main(config):
             
 
         if i % 100 == 0:
-            print(utils.save_checkpoint(
+            utils.save_checkpoint(
                 path=f"{path}/checkpoints/{args.run_name}/go2_update_{i}.pt",
                 policy=policy,
                 optim=optim,
                 update=i,
-                avg_rew=buffer.rewards.mean().item()))
+                avg_rew=buffer.rewards.mean().item())
             print(utils.make_eval_video(
                 env=env,
                 policy=policy,

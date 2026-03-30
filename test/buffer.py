@@ -28,11 +28,15 @@ class Buffer:
         self.obs_mean  = torch.zeros(obs_dim, device=device)
         self.obs_var   = torch.ones(obs_dim, device=device)
         self.obs_count = torch.tensor(1e-4, device=device)
+        # for network changes 
+
+        self.mu    = torch.zeros(max_length, num_envs, act_dim, device=device)
+        self.sigma = torch.zeros(max_length, num_envs, act_dim, device=device)
 
     def reset(self):
         self.steps = 0
 
-    def add_step(self, obs, actions, log_probs, rewards, dones, values, lin_vel_rewards):
+    def add_step(self, obs, actions, log_probs, rewards, dones, values, lin_vel_rewards, mu, sigma):
         if obs.shape[-1] != self.obs_dim:
             raise ValueError(f"obs dim {obs.shape} != {self.obs_dim}")
         if actions.shape[-1] != self.act_dim:
@@ -46,14 +50,22 @@ class Buffer:
         t = self.steps
         self.steps += 1
         # In Buffer.add_step
-        self.obs[t + 1].copy_(
-            self.normalize_obs(obs.detach()))
+        if torch.isnan(obs).any():
+            nan_mask = torch.isnan(obs).any(dim=-1)  # (N,) bool
+            obs = obs.clone()
+            obs[nan_mask] = 0.0      # neutrale Observation
+            dones[nan_mask] = True   # Episode als beendet markieren
+            rewards[nan_mask] = 0.0  # kein falsches Reward-Signal
+
+        self.obs[t + 1].copy_(self.normalize_obs(obs.detach()))
         self.actions[t].copy_(actions.detach())
         self.rewards[t].copy_(rewards)
         self.log_probs[t].copy_(log_probs.detach())
         self.values[t].copy_(values.detach())
         self.dones[t].copy_(dones.detach())
         self.lin_vel_rewards[t].copy_(lin_vel_rewards.detach())
+        self.mu[t].copy_(mu.detach())
+        self.sigma[t].copy_(sigma.detach())
         #self.update_obs_stats(obs.detach())
 
     def init_obs(self, obs0, values0):
@@ -102,6 +114,8 @@ class Buffer:
             advantages=self.advantages.reshape(-1, 1)[indices].clone().detach(),
             returns=self.returns.reshape(-1, 1)[indices].clone().detach(),
             values=self.values.reshape(-1, 1)[indices].clone().detach(),
+            mu=self.mu.reshape(-1, self.act_dim)[indices].clone().detach(),
+            sigma=self.sigma.reshape(-1, self.act_dim)[indices].clone().detach(),
         )
         return batch
 
@@ -115,6 +129,9 @@ class Buffer:
         advantages = self.advantages.reshape(-1, 1).detach()
         returns = self.returns.reshape(-1, 1).detach()
         values = self.values.reshape(-1, 1).detach()
+        mu = self.mu.reshape(-1, self.act_dim).detach()
+        sigma = self.sigma.reshape(-1, self.act_dim).detach()
+
 
         indices = torch.randperm(total_size, device=self.device)
         batch_size = total_size // num_minibatches  
@@ -125,6 +142,7 @@ class Buffer:
                 obs=obs[idx], actions=actions[idx],
                 log_probs=log_probs[idx], advantages=advantages[idx],
                 returns=returns[idx], values=values[idx],
+                mu=mu[idx], sigma=sigma[idx],
             )
 
 

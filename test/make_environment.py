@@ -253,6 +253,7 @@ class Go2WalkingEnv:
         
         self.actions[env_ids].zero_()
         self.last_actions[env_ids].zero_()
+
         self._update_state()
         self._compute_observations()
         
@@ -343,6 +344,8 @@ class Go2WalkingEnv:
 
         self.base_pos.copy_(base_pos_t)
         self.base_quat.copy_(base_quat_t)
+        quat_norm = self.base_quat.norm(dim=-1, keepdim=True).clamp(min=1e-6)
+        self.base_quat = self.base_quat / quat_norm
         self.base_lin_vel.copy_(base_vel_t[:, :3])
         self.base_ang_vel.copy_(base_vel_t[:, 3:6])
         self.dof_pos.copy_(dof_pos_t)
@@ -412,22 +415,22 @@ class Go2WalkingEnv:
         }
         return self.reward_fn(obs, actions, info)
     
+    # make_environment.py – _check_termination():
     def _check_termination(self):
-        # 1. Height check
-        base_height = self.base_pos[:, 2]
-        fall_termination = base_height < self.min_base_height
-        
-        # 2. Tilt check using projected gravity
-        # Transform world gravity [0, 0, -1] into the robot's local frame
         gravity_vec = torch.tensor([0.0, 0.0, -1.0], device=self.device).repeat(self.num_envs, 1)
         proj_gravity = transform_by_quat(gravity_vec, inv_quat(self.base_quat))
-        
-        # When perfectly upright, proj_gravity is [0, 0, -1] (so Z is -1.0)
-        # If it tips by 90 degrees, Z becomes 0.0.
-        # A threshold of -0.5 corresponds to a 60-degree tilt.
-        tip_termination = proj_gravity[:, 2] > -0.5
-        
-        return fall_termination | tip_termination
+
+        roll_termination  = torch.abs(proj_gravity[:, 1]) > 0.342  # 20°
+        pitch_termination = torch.abs(proj_gravity[:, 0]) > 0.174  # 10°
+        fall_termination  = self.base_pos[:, 2] < self.min_base_height
+
+        termination = roll_termination | pitch_termination | fall_termination
+
+        # ✅ Keine Terminierung in den ersten 10 Steps (Physik muss sich setzen)
+        grace_mask = self.episode_length_buf < 40
+        return termination & ~grace_mask
+
+
 
 
 
