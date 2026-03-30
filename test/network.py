@@ -90,7 +90,7 @@ class Network(nn.Module):
 
         
         kl = torch.sum(
-            torch.log(sigma / (old_sigma + 1e-5) + 1e-5)
+            (torch.log(sigma + 1e-5) - torch.log(old_sigma + 1e-5))
             + (old_sigma**2 + (old_mu - mu)**2) / (2.0 * sigma**2)
             - 0.5,
             dim=-1

@@ -124,17 +124,6 @@ def main(config):
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(policy.parameters(), 1.0)  # gradient clipping
                 optim.step()
-                with torch.no_grad():
-                    lp_new, _, _ = policy.compute_log_probs(batch['obs'], batch['actions'])
-                    kl = (batch['log_probs'].squeeze() - lp_new).mean().item()
-                if kl > 2.0 * desired_kl:
-                    stop_early = True
-                    break
-        
-        if kl > 2.0 * desired_kl:
-            lr = max(lr / 1.5, 1e-4)
-        elif kl < 0.5 * desired_kl:
-            lr = min(lr * 1.5, 1e-2)
 
         for param_group in optim.param_groups:
             param_group['lr'] = lr
