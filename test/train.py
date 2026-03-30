@@ -116,7 +116,7 @@ def main(config):
                                         returns=batch['returns'],
                                         old_mu=batch['mu'], old_sigma=batch['sigma']     # ← übergeben
                                     )
-                entropy_loss = -0.01 * entropy.mean()
+                entropy_loss = -config['entropy'] * entropy.mean()
 
                 loss = actor_loss + critic_loss + entropy_loss
 
