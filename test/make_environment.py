@@ -293,21 +293,23 @@ class Go2WalkingEnv:
         # Update episode length
         self.episode_length_buf += 1
         time_outs = self.episode_length_buf >= self.max_episode_length
-        # Check for resets
-        self.reset_buf = self.episode_length_buf >= self.max_episode_length
-        self.reset_buf |= self._check_termination() 
-        
+        terminated = self._check_termination()
+        self.reset_buf = time_outs | terminated
+        done_buf = self.reset_buf.clone()
+
         self.last_actions[:] = self.actions[:]
         
         # Vor dem Reset eine Kopie ziehen
-        done_buf = self.reset_buf.clone()
-        if self.reset_buf.any():
-            self.reset(self.reset_buf.nonzero(as_tuple=False).flatten())
+        time_outs_out = time_outs.clone()
+
+        if done_buf.any():
+            self.reset(done_buf.nonzero(as_tuple=False).flatten())
+        return self.obs_buf, rewards, done_buf, time_outs_out
 
         ##info = {
         #    "time_outs" : (self.episode_length_buf >= self.max_episode_length).sum().item(),}
 
-        return self.obs_buf, rewards, done_buf, time_outs  
+        #return self.obs_buf, rewards, done_buf, time_outs  
 
     
     def _update_state(self):

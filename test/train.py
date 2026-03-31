@@ -92,7 +92,8 @@ def main(config):
                 buffer.add_step(next_obs_clean, actions, log_probs, reward, done, value, lin_vel_reward, mu, sigma, time_outs)
                 
                 obs = next_obs_clean
-
+            last_obs_norm = buffer.normalize_obs(obs)
+            buffer.values[buffer.steps].copy_(policy.get_value(last_obs_norm).detach())
             buffer.compute_returns_and_advantages(gamma=config["policy_cfg"]["gamma"],
                                                   lmbda=config["policy_cfg"]["lmbda"])
         total_lin_reward, lin_vel_x = utils.adjust_motion_command(total_lin_reward,
