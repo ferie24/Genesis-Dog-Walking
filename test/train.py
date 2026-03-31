@@ -61,19 +61,20 @@ def main(config):
 
     if args.start_update > 0:
         print(f"Loading checkpoint from update {args.start_update}")
-        checkpoint = torch.load(f"{path}/checkpoints/go2_update_{args.start_update}.pt", map_location=device)
+        checkpoint = torch.load(f"{path}/checkpoints/{args.run_name}/go2_update_{args.start_update}.pt", map_location=device)
         policy.load_state_dict(checkpoint["model_state_dict"])
         optim.load_state_dict(checkpoint["optimizer_state_dict"])
         #lin_vel_x = checkpoint['lin_vel_x']
         
     # Do not like the configuration here TODO: fix later
     total_lin_reward = torch.zeros((20, config["training_cfg"]["steps_per_update"], args.num_envs, 1), device=device)
-    desired_kl = 0.12
+    desired_kl = 0.02
+    
+    obs = env.reset()
+    buffer.update_obs_stats(obs)
     for i in range(args.start_update, args.num_updates):
         with torch.no_grad():
             buffer.reset()
-            obs = env.reset()
-            buffer.update_obs_stats(obs)
             obs_norm = buffer.normalize_obs(obs)
             buffer.init_obs(obs_norm, policy.get_value(obs_norm))
             for step in range(config["training_cfg"]["steps_per_update"]):
@@ -90,7 +91,7 @@ def main(config):
                 buffer.update_obs_stats(next_obs_clean) 
                 buffer.add_step(next_obs_clean, actions, log_probs, reward, done, value, lin_vel_reward, mu, sigma)
                 
-                obs = next_obs
+                obs = next_obs_clean
 
             buffer.compute_returns_and_advantages(gamma=config["policy_cfg"]["gamma"],
                                                   lmbda=config["policy_cfg"]["lmbda"])
@@ -133,7 +134,7 @@ def main(config):
 
                 running_avg_kl = epoch_kl_sum / batch_count
                 if running_avg_kl > desired_kl * 2.0:
-                    print(f"Early stop at epoch {epoch}: KL={running_avg_kl:.4f} > {desired_kl*2:.4f}")
+                    #print(f"Early stop at epoch {epoch}: KL={running_avg_kl:.4f} > {desired_kl*2:.4f}")
                     stop_update = True
                     break
             epoch_avg_kl = epoch_kl_sum / max(batch_count, 1)
@@ -142,9 +143,9 @@ def main(config):
             if stop_update:
                 break
         if last_epoch_avg_kl > desired_kl * 1.5:
-            lr *= 0.5
+            lr *= 0.9
         elif last_epoch_avg_kl < desired_kl * 0.5:
-            lr *= 1.2
+            lr *= 1.05
         for param_group in optim.param_groups:
             param_group['lr'] = lr
 

@@ -304,7 +304,10 @@ class Go2WalkingEnv:
         if self.reset_buf.any():
             self.reset(self.reset_buf.nonzero(as_tuple=False).flatten())
 
-        return self.obs_buf, rewards, done_buf, {}  
+        info = {
+            "time_outs" : (self.episode_length_buf >= self.max_episode_length).sum().item(),}
+
+        return self.obs_buf, rewards, done_buf, info  
 
     
     def _update_state(self):
@@ -421,12 +424,11 @@ class Go2WalkingEnv:
         proj_gravity = transform_by_quat(gravity_vec, inv_quat(self.base_quat))
 
         roll_termination  = torch.abs(proj_gravity[:, 1]) > 0.342  # 20°
-        pitch_termination = torch.abs(proj_gravity[:, 0]) > 0.174  # 10°
+        pitch_termination = torch.abs(proj_gravity[:, 0]) > 0.522  # 30°
         fall_termination  = self.base_pos[:, 2] < self.min_base_height
 
         termination = roll_termination | pitch_termination | fall_termination
 
-        # ✅ Keine Terminierung in den ersten 10 Steps (Physik muss sich setzen)
         grace_mask = self.episode_length_buf < 40
         return termination & ~grace_mask
 

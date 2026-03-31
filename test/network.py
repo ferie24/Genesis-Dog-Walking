@@ -56,8 +56,7 @@ class Network(nn.Module):
 
     def _distribution(self, state):
         mean = self.actor_mean(self.actor(state))
-        # ✅ std.clamp(min) verhindert negative std durch Gradienten
-        std  = self.std.clamp(min=1e-6)
+        std  = self.std.clamp(min=1e-6, max=1.0) 
         return torch.distributions.Normal(mean, std), mean, std
     
     def forward(self, state):
