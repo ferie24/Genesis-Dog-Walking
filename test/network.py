@@ -27,7 +27,7 @@ class Network(nn.Module):
 
         )
         self.actor_mean = nn.Linear(128, num_actions)
-        self.std = nn.Parameter(torch.zeros(num_actions))
+        self.std = nn.Parameter(torch.ones(num_actions))
 
         # Critic head (value estimate)
         self.critic = nn.Sequential(
