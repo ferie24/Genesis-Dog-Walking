@@ -33,10 +33,12 @@ class Buffer:
         self.mu    = torch.zeros(max_length, num_envs, act_dim, device=device)
         self.sigma = torch.zeros(max_length, num_envs, act_dim, device=device)
 
+        self.time_outs = torch.zeros((max_length, num_envs, 1), device=device)
+
     def reset(self):
         self.steps = 0
 
-    def add_step(self, obs, actions, log_probs, rewards, dones, values, lin_vel_rewards, mu, sigma):
+    def add_step(self, obs, actions, log_probs, rewards, dones, values, lin_vel_rewards, mu, sigma, time_outs):
         if obs.shape[-1] != self.obs_dim:
             raise ValueError(f"obs dim {obs.shape} != {self.obs_dim}")
         if actions.shape[-1] != self.act_dim:
@@ -46,6 +48,7 @@ class Buffer:
         if dones.dim() == 1: dones = dones.unsqueeze(-1).float()
         if values.dim() == 1: values = values.unsqueeze(-1)
         if lin_vel_rewards.dim() == 1: lin_vel_rewards = lin_vel_rewards.unsqueeze(-1)
+        if time_outs.dim() == 1: time_outs = time_outs.unsqueeze(-1).float()
 
         t = self.steps
         self.steps += 1
@@ -66,6 +69,8 @@ class Buffer:
         self.lin_vel_rewards[t].copy_(lin_vel_rewards.detach())
         self.mu[t].copy_(mu.detach())
         self.sigma[t].copy_(sigma.detach())
+        self.time_outs[t].copy_(time_outs.detach())
+
         #self.update_obs_stats(obs.detach())
 
     def init_obs(self, obs0, values0):
@@ -89,7 +94,8 @@ class Buffer:
         advantages = torch.zeros((self.num_envs, 1), device=self.device)
 
         for t in reversed(range(self.steps)):
-            mask = 1.0 - self.dones[t].float()  # (N,1)
+            terminated = self.dones[t].float() * (1 - self.time_outs[t].float()) # (N,1)
+            mask = 1 - terminated  # (N,1) 1 für nicht-terminierte und timeouts, 0 für terminierte Schritte
             delta = self.rewards[t] + gamma * self.values[t + 1] * mask - self.values[t]
             advantages = delta + gamma * lmbda * advantages * mask
 
@@ -116,6 +122,7 @@ class Buffer:
             values=self.values.reshape(-1, 1)[indices].clone().detach(),
             mu=self.mu.reshape(-1, self.act_dim)[indices].clone().detach(),
             sigma=self.sigma.reshape(-1, self.act_dim)[indices].clone().detach(),
+            time_outs=self.time_outs.reshape(-1, 1)[indices].clone().detach(),
         )
         return batch
 
@@ -131,7 +138,7 @@ class Buffer:
         values = self.values.reshape(-1, 1).detach()
         mu = self.mu.reshape(-1, self.act_dim).detach()
         sigma = self.sigma.reshape(-1, self.act_dim).detach()
-
+        time_outs = self.time_outs.reshape(-1, 1).detach()
 
         indices = torch.randperm(total_size, device=self.device)
         batch_size = total_size // num_minibatches  
@@ -143,6 +150,8 @@ class Buffer:
                 log_probs=log_probs[idx], advantages=advantages[idx],
                 returns=returns[idx], values=values[idx],
                 mu=mu[idx], sigma=sigma[idx],
+                time_outs=time_outs[idx]
+
             )
 
 

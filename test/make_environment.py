@@ -292,10 +292,10 @@ class Go2WalkingEnv:
         
         # Update episode length
         self.episode_length_buf += 1
-        
+        time_outs = self.episode_length_buf >= self.max_episode_length
         # Check for resets
         self.reset_buf = self.episode_length_buf >= self.max_episode_length
-        self.reset_buf |= self._check_termination()
+        self.reset_buf |= self._check_termination() 
         
         self.last_actions[:] = self.actions[:]
         
@@ -304,10 +304,10 @@ class Go2WalkingEnv:
         if self.reset_buf.any():
             self.reset(self.reset_buf.nonzero(as_tuple=False).flatten())
 
-        info = {
-            "time_outs" : (self.episode_length_buf >= self.max_episode_length).sum().item(),}
+        ##info = {
+        #    "time_outs" : (self.episode_length_buf >= self.max_episode_length).sum().item(),}
 
-        return self.obs_buf, rewards, done_buf, info  
+        return self.obs_buf, rewards, done_buf, time_outs  
 
     
     def _update_state(self):

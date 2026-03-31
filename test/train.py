@@ -83,13 +83,13 @@ def main(config):
                 actions, value = policy.get_actions(obs_norm)
                 log_probs, _, _ = policy.compute_log_probs(obs_norm, actions)
                 mu, sigma, _    = policy.forward(obs_norm) 
-                next_obs, reward, done, info = env.step(actions)
+                next_obs, reward, done, time_outs = env.step(actions)
                 reward, lin_vel_reward = reward
                 next_obs_clean = next_obs.clone()
                 if torch.isnan(next_obs_clean).any():
                     next_obs_clean[torch.isnan(next_obs_clean).any(dim=-1)] = 0.0
                 buffer.update_obs_stats(next_obs_clean) 
-                buffer.add_step(next_obs_clean, actions, log_probs, reward, done, value, lin_vel_reward, mu, sigma)
+                buffer.add_step(next_obs_clean, actions, log_probs, reward, done, value, lin_vel_reward, mu, sigma, time_outs)
                 
                 obs = next_obs_clean
 
