@@ -68,6 +68,7 @@ def main(config):
         
     # Do not like the configuration here TODO: fix later
     total_lin_reward = torch.zeros((20, config["training_cfg"]["steps_per_update"], args.num_envs, 1), device=device)
+    desired_kl = 0.12
     for i in range(args.start_update, args.num_updates):
         with torch.no_grad():
             buffer.reset()
@@ -80,7 +81,7 @@ def main(config):
                 obs_norm = buffer.normalize_obs(obs)
                 actions, value = policy.get_actions(obs_norm)
                 log_probs, _, _ = policy.compute_log_probs(obs_norm, actions)
-                _, mu, sigma    = policy.forward(obs_norm) 
+                mu, sigma, _    = policy.forward(obs_norm) 
                 next_obs, reward, done, info = env.step(actions)
                 reward, lin_vel_reward = reward
                 next_obs_clean = next_obs.clone()
@@ -102,34 +103,53 @@ def main(config):
                                                                   buffer,
                                                                   optim=optim,
                                                             policy=policy)
-        desired_kl = 0.01
-        lr = optim.param_groups[0]['lr']
-        stop_early = False
+        lr = optim.param_groups[0]["lr"]
+        stop_update = False
+        last_epoch_avg_kl = 0.0
         for epoch in range(config["training_cfg"]["update_epochs"]):
-            if stop_early:
-                break
+            epoch_kl_sum = 0.0
+            batch_count = 0 
             for batch in buffer.get_minibatches(args.num_batches):
-
                 critic_loss, actor_loss, entropy, kl = policy.compute_loss(
-                                        states=batch['obs'], actions=batch['actions'],
-                                        advantages=batch['advantages'], log_probs_old=batch['log_probs'],
-                                        returns=batch['returns'],
-                                        old_mu=batch['mu'], old_sigma=batch['sigma']     # ← übergeben
-                                    )
-                entropy_loss = -config['entropy'] * entropy.mean()
+                    states=batch["obs"],
+                    actions=batch["actions"],
+                    advantages=batch["advantages"],
+                    log_probs_old=batch["log_probs"],
+                    returns=batch["returns"],
+                    old_mu=batch["mu"],
+                    old_sigma=batch["sigma"],
+                )
 
+                entropy_loss = -config["entropy"] * entropy.mean()
                 loss = actor_loss + critic_loss + entropy_loss
 
                 optim.zero_grad()
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(policy.parameters(), 1.0)  # gradient clipping
+                torch.nn.utils.clip_grad_norm_(policy.parameters(), 1.0)
                 optim.step()
 
+                epoch_kl_sum += kl.item()
+                batch_count += 1
+
+                running_avg_kl = epoch_kl_sum / batch_count
+                if running_avg_kl > desired_kl * 2.0:
+                    print(f"Early stop at epoch {epoch}: KL={running_avg_kl:.4f} > {desired_kl*2:.4f}")
+                    stop_update = True
+                    break
+            epoch_avg_kl = epoch_kl_sum / max(batch_count, 1)
+            last_epoch_avg_kl = epoch_avg_kl
+            
+            if stop_update:
+                break
+        if last_epoch_avg_kl > desired_kl * 1.5:
+            lr *= 0.5
+        elif last_epoch_avg_kl < desired_kl * 0.5:
+            lr *= 1.2
         for param_group in optim.param_groups:
             param_group['lr'] = lr
 
         writer.add_scalar("learning_rate", lr, i)
-        writer.add_scalar("kl_divergence", kl, i)
+        writer.add_scalar("kl_divergence", last_epoch_avg_kl, i)
 
 
         writer.add_scalar("loss", loss.item(), i)
