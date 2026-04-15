@@ -48,7 +48,7 @@ def main(config):
         num_outputs=env.num_actions,
         num_inputs=env.num_obs,
         epsilon=config["policy_cfg"]["epsilon"],
-    )
+    ).to(device)
     buffer = Buffer(
         num_envs=args.num_envs,
         obs_dim=env.num_obs,
@@ -69,7 +69,7 @@ def main(config):
     # Do not like the configuration here TODO: fix later
     total_lin_reward = torch.zeros((20, config["training_cfg"]["steps_per_update"], args.num_envs, 1), device=device)
     desired_kl = 0.02
-    
+    print(f"Policy device: {next(policy.parameters()).device}")
     obs = env.reset()
     buffer.update_obs_stats(obs)
     for i in range(args.start_update, args.num_updates):
@@ -120,6 +120,7 @@ def main(config):
                     returns=batch["returns"],
                     old_mu=batch["mu"],
                     old_sigma=batch["sigma"],
+                    old_values=batch["values_old"],
                 )
 
                 entropy_loss = -config["entropy"] * entropy.mean()

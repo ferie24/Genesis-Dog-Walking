@@ -27,7 +27,7 @@ class Network(nn.Module):
 
         )
         self.actor_mean = nn.Linear(128, num_actions)
-        self.std = nn.Parameter(torch.ones(num_actions))
+        self.log_std = nn.Parameter(torch.zeros(num_actions))
 
         # Critic head (value estimate)
         self.critic = nn.Sequential(
@@ -56,7 +56,7 @@ class Network(nn.Module):
 
     def _distribution(self, state):
         mean = self.actor_mean(self.actor(state))
-        std  = self.std.clamp(min=1e-6, max=1.0) 
+        std = torch.exp(self.log_std).clamp(min=0.01, max=0.5)  # e^x ist immer positiv
         return torch.distributions.Normal(mean, std), mean, std
     
     def forward(self, state):
@@ -68,26 +68,35 @@ class Network(nn.Module):
         dist, mean, std = self._distribution(state)
         value = self.critic(state)
         actions = dist.sample()
-        return actions, value
+        tmp = torch.tanh(actions)
+        return tmp, value
 
     def get_value(self, state):
         return self.critic(state)
 
     def compute_log_probs(self, states, actions):
         dist, mean, std = self._distribution(states)
-        log_probs = dist.log_prob(actions).sum(dim=-1)
+        actions_unbounded = torch.atanh(actions.clamp(-0.99999, 0.99999))
+        log_probs = dist.log_prob(actions_unbounded).sum(dim=-1)
+        log_det_jacobian = torch.log(1 - actions.pow(2) + 1e-6).sum(dim=-1)
+        log_probs = log_probs - log_det_jacobian
         entropy   = dist.entropy().sum(dim=-1)
         value     = self.critic(states)
         return log_probs, value, entropy
 
     def compute_loss(self, states, actions, advantages, log_probs_old,
-                     returns, old_mu, old_sigma):
+                 returns, old_mu, old_sigma, old_values=None):
         dist, mu, sigma = self._distribution(states)
-        log_probs_new   = dist.log_prob(actions).sum(dim=-1)
-        entropy         = dist.entropy().sum(dim=-1)
-        values_new      = self.critic(states)
-
         
+        # Gleiche Transformation wie in compute_log_probs
+        actions_unbounded = torch.atanh(actions.clamp(-0.99999, 0.99999))
+        log_probs_new = dist.log_prob(actions_unbounded).sum(dim=-1)
+        log_det_jacobian = torch.log(1 - actions.pow(2) + 1e-6).sum(dim=-1)
+        log_probs_new = log_probs_new - log_det_jacobian
+        
+        entropy = dist.entropy().sum(dim=-1)
+        values_new = self.critic(states)
+
         kl = torch.sum(
             (torch.log(sigma + 1e-5) - torch.log(old_sigma + 1e-5))
             + (old_sigma**2 + (old_mu - mu)**2) / (2.0 * sigma**2)
@@ -95,22 +104,31 @@ class Network(nn.Module):
             dim=-1
         ).mean()
 
-        
-        ratio   = torch.exp(log_probs_new - log_probs_old.squeeze(-1))
-        surr1   = ratio * advantages.squeeze(-1)
-        surr2   = ratio.clamp(1 - self.epsilon, 1 + self.epsilon) * advantages.squeeze(-1)
+        ratio = torch.exp(log_probs_new - log_probs_old.squeeze(-1))
+        surr1 = ratio * advantages.squeeze(-1)
+        surr2 = ratio.clamp(1 - self.epsilon, 1 + self.epsilon) * advantages.squeeze(-1)
         actor_loss = -torch.min(surr1, surr2).mean()
 
-        # Clip loss
+        # CORRECTED: Value clipping relativ zu OLD values, nicht zu returns!
+        #values_new = self.critic(states)
         returns_sq = returns.squeeze(-1)
-        values_sq  = values_new.squeeze(-1)
-        val_clipped = (returns_sq + (values_sq - returns_sq)
-                       .clamp(-self.epsilon, self.epsilon))
-        critic_loss = torch.max(
-            (values_sq  - returns_sq).pow(2),
-            (val_clipped - returns_sq).pow(2)
-        ).mean()
-
+        values_sq = values_new.squeeze(-1)
+        
+        if old_values is not None:
+            # CORRECT: Clip relative to OLD value estimate, not returns
+            old_values_sq = old_values.squeeze(-1)
+            val_clipped = old_values_sq + (values_sq - old_values_sq).clamp(
+                -self.epsilon, self.epsilon
+            )
+            # Compute loss as max of clipped and unclipped
+            critic_loss = torch.max(
+                (values_sq - returns_sq).pow(2),
+                (val_clipped - returns_sq).pow(2)
+            ).mean()
+        else:
+            # Fallback if old_values not available
+            critic_loss = (values_sq - returns_sq).pow(2).mean()
+        
         return critic_loss, actor_loss, entropy.mean(), kl
 
 
