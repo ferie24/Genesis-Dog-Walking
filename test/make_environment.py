@@ -274,7 +274,7 @@ class Go2WalkingEnv:
             info: Additional info dictionary
         """
         # Clip actions
-        self.actions = actions#torch.clip(actions, -1.0, 1.0)
+        self.actions = torch.clip(actions, -1.0, 1.0)
         
         # Apply actions to robot
         target_dof_pos = self.default_dof_pos + self.actions * 0.25  # Scale actions

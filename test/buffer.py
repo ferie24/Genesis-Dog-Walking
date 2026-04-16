@@ -56,8 +56,8 @@ class Buffer:
         t = self.steps
         self.steps += 1
         # In Buffer.add_step
-        if torch.isnan(obs).any():
-            nan_mask = torch.isnan(obs).any(dim=-1)  # (N,) bool
+        if (~torch.isfinite(obs)).any():
+            nan_mask = (~torch.isfinite(obs)).any(dim=-1)  # (N,) bool
             obs = obs.clone()
             obs[nan_mask] = 0.0      # neutrale Observation
             dones[nan_mask] = True   # Episode als beendet markieren
@@ -83,12 +83,13 @@ class Buffer:
     
     def update_obs_stats(self, obs):
         """Aufruf einmal pro Step im Rollout"""
+        obs = torch.nan_to_num(obs, nan=0.0, posinf=0.0, neginf=0.0)
         batch_mean  = obs.mean(dim=0)
-        batch_var   = obs.var(dim=0)
+        batch_var   = obs.var(dim=0, unbiased=False)
         batch_count = obs.shape[0]
         total = self.obs_count + batch_count
         self.obs_mean = (self.obs_count * self.obs_mean + batch_count * batch_mean) / total
-        self.obs_var  = (self.obs_count * self.obs_var  + batch_count * batch_var)  / total
+        self.obs_var  = ((self.obs_count * self.obs_var  + batch_count * batch_var)  / total).clamp(min=1e-6)
         self.obs_count = total
 
     def normalize_obs(self, obs):

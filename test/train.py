@@ -58,6 +58,7 @@ def main(config):
     )
 
     optim = torch.optim.Adam(policy.parameters(), lr=config["training_cfg"]["learning_rate"])
+    use_obs_normalization = False
 
     if args.start_update > 0:
         print(f"Loading checkpoint from update {args.start_update}")
@@ -67,7 +68,7 @@ def main(config):
         #lin_vel_x = checkpoint['lin_vel_x']
         
     # Do not like the configuration here TODO: fix later
-    total_lin_reward = torch.zeros((20, config["training_cfg"]["steps_per_update"], args.num_envs, 1), device=device)
+    total_lin_reward = torch.zeros(20, device=device)
     desired_kl = 0.02
     print(f"Policy device: {next(policy.parameters()).device}")
     obs = env.reset()
@@ -75,29 +76,48 @@ def main(config):
     for i in range(args.start_update, args.num_updates):
         with torch.no_grad():
             buffer.reset()
-            obs_norm = buffer.normalize_obs(obs)
+            obs_norm = buffer.normalize_obs(obs) if use_obs_normalization else obs
             buffer.init_obs(obs_norm, policy.get_value(obs_norm))
             for step in range(config["training_cfg"]["steps_per_update"]):
                 obs = obs.to(device)
-                obs_norm = buffer.normalize_obs(obs)
+                obs_norm = buffer.normalize_obs(obs) if use_obs_normalization else obs
                 actions, value = policy.get_actions(obs_norm)
                 log_probs, _, _ = policy.compute_log_probs(obs_norm, actions)
                 mu, sigma, _    = policy.forward(obs_norm) 
                 next_obs, reward, done, time_outs = env.step(actions)
                 reward, lin_vel_reward = reward
-                next_obs_clean = next_obs.clone()
-                if torch.isnan(next_obs_clean).any():
-                    next_obs_clean[torch.isnan(next_obs_clean).any(dim=-1)] = 0.0
-                buffer.update_obs_stats(next_obs_clean) 
+
+                next_obs_clean = torch.nan_to_num(next_obs.clone(), nan=0.0, posinf=0.0, neginf=0.0)
+                actions = torch.nan_to_num(actions, nan=0.0, posinf=0.0, neginf=0.0)
+                log_probs = torch.nan_to_num(log_probs, nan=0.0, posinf=0.0, neginf=0.0)
+                value = torch.nan_to_num(value, nan=0.0, posinf=0.0, neginf=0.0)
+                mu = torch.nan_to_num(mu, nan=0.0, posinf=0.0, neginf=0.0)
+                sigma = torch.nan_to_num(sigma, nan=1.0, posinf=1.0, neginf=1.0)
+                reward = torch.nan_to_num(reward, nan=0.0, posinf=0.0, neginf=0.0)
+                lin_vel_reward = torch.nan_to_num(lin_vel_reward, nan=0.0, posinf=0.0, neginf=0.0)
+
+                finite_env_mask = torch.isfinite(next_obs).all(dim=-1)
+                if reward.dim() == 1:
+                    finite_env_mask &= torch.isfinite(reward)
+                else:
+                    finite_env_mask &= torch.isfinite(reward).all(dim=-1)
+                finite_env_mask &= torch.isfinite(actions).all(dim=-1)
+                if (~finite_env_mask).any():
+                    done = done.clone()
+                    done[~finite_env_mask] = True
+
+                if use_obs_normalization:
+                    buffer.update_obs_stats(next_obs_clean)
                 buffer.add_step(next_obs_clean, actions, log_probs, reward, done, value, lin_vel_reward, mu, sigma, time_outs)
                 
                 obs = next_obs_clean
-            last_obs_norm = buffer.normalize_obs(obs)
+            last_obs_norm = buffer.normalize_obs(obs) if use_obs_normalization else obs
             buffer.values[buffer.steps].copy_(policy.get_value(last_obs_norm).detach())
             buffer.compute_returns_and_advantages(gamma=config["policy_cfg"]["gamma"],
                                                   lmbda=config["policy_cfg"]["lmbda"])
+        rollout_lin_vel_reward = buffer.lin_vel_rewards[:buffer.steps].mean().item()
         total_lin_reward, lin_vel_x = utils.adjust_motion_command(total_lin_reward,
-                                                                  lin_vel_reward,
+                                                                  rollout_lin_vel_reward,
                                                                   i,
                                                                   lin_vel_x,
                                                                   path,
@@ -112,6 +132,19 @@ def main(config):
             epoch_kl_sum = 0.0
             batch_count = 0 
             for batch in buffer.get_minibatches(args.num_batches):
+                batch_is_finite = (
+                    torch.isfinite(batch["obs"]).all()
+                    and torch.isfinite(batch["actions"]).all()
+                    and torch.isfinite(batch["advantages"]).all()
+                    and torch.isfinite(batch["log_probs"]).all()
+                    and torch.isfinite(batch["returns"]).all()
+                    and torch.isfinite(batch["mu"]).all()
+                    and torch.isfinite(batch["sigma"]).all()
+                    and torch.isfinite(batch["values_old"]).all()
+                )
+                if not batch_is_finite:
+                    continue
+
                 critic_loss, actor_loss, entropy, kl = policy.compute_loss(
                     states=batch["obs"],
                     actions=batch["actions"],
@@ -125,6 +158,9 @@ def main(config):
 
                 entropy_loss = -config["entropy"] * entropy.mean()
                 loss = actor_loss + critic_loss + entropy_loss
+
+                if not torch.isfinite(loss):
+                    continue
 
                 optim.zero_grad()
                 loss.backward()
@@ -144,10 +180,10 @@ def main(config):
             
             if stop_update:
                 break
-        if last_epoch_avg_kl > desired_kl * 1.5:
-            lr *= 0.9
-        elif last_epoch_avg_kl < desired_kl * 0.5:
-            lr *= 1.05
+        if last_epoch_avg_kl > desired_kl * 2.0:
+            lr = max(1e-4, lr / 1.5)
+        elif last_epoch_avg_kl < desired_kl / 2.0 and last_epoch_avg_kl > 0.0:
+            lr = min(3e-4, lr * 1.5)
         for param_group in optim.param_groups:
             param_group['lr'] = lr
 

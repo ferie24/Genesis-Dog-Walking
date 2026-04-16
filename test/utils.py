@@ -61,7 +61,7 @@ def save_checkpoint(path, policy, optim, update, avg_rew, extra=None):
 
 def adjust_motion_command(total_lin_reward, lin_reward_t, i, lin_vel_x, path, env, buffer, optim=None, policy=None, ):
     counter = i % 20 # should restart and replace list every 20 update iterations
-    total_lin_reward[counter] = lin_reward_t.unsqueeze(-1) # add batch dimension to lin_reward_t and store in total_lin_reward list at index counter
+    total_lin_reward[counter] = lin_reward_t
     # get mean from lin_vel_reward and adjust the command accordingly
     mean_lin_vel_reward = total_lin_reward.mean().item()
     # if devieates

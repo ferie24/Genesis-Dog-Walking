@@ -1,8 +1,5 @@
-from math import gamma
-
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 class Network(nn.Module):
     def __init__(self, num_inputs,
@@ -56,7 +53,8 @@ class Network(nn.Module):
 
     def _distribution(self, state):
         mean = self.actor_mean(self.actor(state))
-        std = torch.exp(self.log_std).clamp(min=0.01, max=0.5)  # e^x ist immer positiv
+        log_std = torch.clamp(self.log_std, min=-4.0, max=1.0)
+        std = torch.exp(log_std)
         return torch.distributions.Normal(mean, std), mean, std
     
     def forward(self, state):
@@ -68,18 +66,14 @@ class Network(nn.Module):
         dist, mean, std = self._distribution(state)
         value = self.critic(state)
         actions = dist.sample()
-        tmp = torch.tanh(actions)
-        return tmp, value
+        return actions, value
 
     def get_value(self, state):
         return self.critic(state)
 
     def compute_log_probs(self, states, actions):
         dist, mean, std = self._distribution(states)
-        actions_unbounded = torch.atanh(actions.clamp(-0.99999, 0.99999))
-        log_probs = dist.log_prob(actions_unbounded).sum(dim=-1)
-        log_det_jacobian = torch.log(1 - actions.pow(2) + 1e-6).sum(dim=-1)
-        log_probs = log_probs - log_det_jacobian
+        log_probs = dist.log_prob(actions).sum(dim=-1)
         entropy   = dist.entropy().sum(dim=-1)
         value     = self.critic(states)
         return log_probs, value, entropy
@@ -87,12 +81,7 @@ class Network(nn.Module):
     def compute_loss(self, states, actions, advantages, log_probs_old,
                  returns, old_mu, old_sigma, old_values=None):
         dist, mu, sigma = self._distribution(states)
-        
-        # Gleiche Transformation wie in compute_log_probs
-        actions_unbounded = torch.atanh(actions.clamp(-0.99999, 0.99999))
-        log_probs_new = dist.log_prob(actions_unbounded).sum(dim=-1)
-        log_det_jacobian = torch.log(1 - actions.pow(2) + 1e-6).sum(dim=-1)
-        log_probs_new = log_probs_new - log_det_jacobian
+        log_probs_new = dist.log_prob(actions).sum(dim=-1)
         
         entropy = dist.entropy().sum(dim=-1)
         values_new = self.critic(states)
@@ -104,7 +93,8 @@ class Network(nn.Module):
             dim=-1
         ).mean()
 
-        ratio = torch.exp(log_probs_new - log_probs_old.squeeze(-1))
+        log_ratio = torch.clamp(log_probs_new - log_probs_old.squeeze(-1), min=-20.0, max=20.0)
+        ratio = torch.exp(log_ratio)
         surr1 = ratio * advantages.squeeze(-1)
         surr2 = ratio.clamp(1 - self.epsilon, 1 + self.epsilon) * advantages.squeeze(-1)
         actor_loss = -torch.min(surr1, surr2).mean()
