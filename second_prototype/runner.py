@@ -57,10 +57,9 @@ def build_env(device: str, num_envs: int, show_viewer: bool) -> Go2WalkingEnv:
     env.set_commands(lin_vel_x=0.4, lin_vel_y=0.0, ang_vel_yaw=0.0)
     return env
 
-
-def build_train_cfg() -> dict:
+def build_train_cfg(run_name: str) -> dict:
     return {
-        "run_name": "go2_genesis_rsl_rl",
+        "run_name": run_name,
         "logger": "tensorboard",
         "num_steps_per_env": 128,
         "save_interval": 25,
@@ -110,6 +109,20 @@ def build_train_cfg() -> dict:
 def _iter_from_name(path_obj: Path) -> int:
     match = re.search(r"model_(\d+)\.pt$", path_obj.name)
     return int(match.group(1)) if match else -1
+
+
+def reserve_run_version(logs_root: Path, base_run_name: str) -> tuple[str, Path]:
+    """Reserve a unique run name and directory by incrementing a numeric suffix."""
+    logs_root.mkdir(parents=True, exist_ok=True)
+
+    version = 1
+    while True:
+        run_name = f"{base_run_name}_v{version:03d}"
+        run_dir = logs_root / run_name
+        if not run_dir.exists():
+            run_dir.mkdir(parents=True, exist_ok=False)
+            return run_name, run_dir
+        version += 1
 
 
 def load_latest_checkpoint(runner: OnPolicyRunner, log_dir: Path, device: str) -> Path:
@@ -162,9 +175,9 @@ def main(num_learning_iterations: int = 3000, make_video: bool = True) -> None:
     print("Observation keys:", list(obs.keys()))
     print("Policy obs shape:", obs["policy"].shape)
 
-    train_cfg = build_train_cfg()
-    log_dir = project_root / "logs" / "rsl_rl_go2"
-    log_dir.mkdir(parents=True, exist_ok=True)
+    logs_root = project_root / "logs"
+    run_name, log_dir = reserve_run_version(logs_root=logs_root, base_run_name="go2_genesis_rsl_rl")
+    train_cfg = build_train_cfg(run_name=run_name)
 
     runner = OnPolicyRunner(
         env=env,
@@ -173,6 +186,7 @@ def main(num_learning_iterations: int = 3000, make_video: bool = True) -> None:
         device=device,
     )
     print("Runner ist bereit.")
+    print(f"Run name: {run_name}")
     print(f"Logs: {log_dir}")
 
     runner.learn(num_learning_iterations=num_learning_iterations, init_at_random_ep_len=True)
