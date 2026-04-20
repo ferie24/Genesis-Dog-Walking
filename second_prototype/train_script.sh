@@ -6,9 +6,9 @@
 #SBATCH --output=logs/%j.out
 
 source ~/miniconda3/etc/profile.d/conda.sh
-conda activate genesis
+conda activate test
 export PYOPENGL_PLATFORM=egl
 export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
 
-cd ~/working_dir/Genesis-Dog-Walking/test
+cd ~/working_dir/Genesis-Dog-Walking/second_prototype
 python3 runner.py

@@ -13,8 +13,7 @@ local_rsl_rl = project_root / "rsl_rl"
 if str(local_rsl_rl) not in sys.path:
     sys.path.insert(0, str(local_rsl_rl))
 
-from make_environment import Go2WalkingEnv
-from reward import Rewards
+
 from rsl_rl.runners import OnPolicyRunner
 
 
@@ -24,6 +23,8 @@ try:
 except Exception as exc:
     print(f"Genesis war bereits initialisiert: {exc}")
 
+from make_environment import Go2WalkingEnv
+from reward import Rewards
 
 REWARD_CFG = {
     "tracking_lin_vel_x": 1.0,
