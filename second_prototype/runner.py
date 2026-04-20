@@ -14,6 +14,7 @@ if str(local_rsl_rl) not in sys.path:
     sys.path.insert(0, str(local_rsl_rl))
 
 from make_environment import Go2WalkingEnv
+from reward import Rewards
 from rsl_rl.runners import OnPolicyRunner
 
 
@@ -24,19 +25,25 @@ except Exception as exc:
     print(f"Genesis war bereits initialisiert: {exc}")
 
 
-def go2_reward(obs, actions, info):
-    target_vx = info["commands"][:, 0]
-    current_vx = info["base_lin_vel_base"][:, 0]
-    tracking = torch.exp(-((current_vx - target_vx) ** 2) / 0.25)
+REWARD_CFG = {
+    "tracking_lin_vel_x": 1.0,
+    "tracking_ang_vel": 1.0,
+    "lin_vel_z": -1.0,
+    "lin_vel_y": -5.0,
+    "action_rate": -0.005,
+    "similar_to_default": -0.1,
+    "sideway_movement": -1.0,
+    "tracking_sigma": 0.3,
+}
 
-    upright = (1.0 - info["orientation_error"]).clamp(0.0, 1.0)
-    action_penalty = 0.001 * (actions ** 2).sum(dim=-1)
-    side_penalty = 0.05 * torch.abs(info["base_lin_vel_base"][:, 1])
 
-    return tracking + 0.2 * upright - action_penalty - side_penalty
+def build_reward_fn() -> Rewards:
+    scales = {k: v for k, v in REWARD_CFG.items() if k != "tracking_sigma"}
+    return Rewards(tracking_sigma=REWARD_CFG["tracking_sigma"], scales=scales)
 
 
 def build_env(device: str, num_envs: int, show_viewer: bool) -> Go2WalkingEnv:
+    reward_fn = build_reward_fn()
     env = Go2WalkingEnv(
         num_envs=num_envs,
         device=device,
@@ -44,7 +51,7 @@ def build_env(device: str, num_envs: int, show_viewer: bool) -> Go2WalkingEnv:
         use_terrain=False,
         episode_length_s=20.0,
         min_up_dot=0.05,
-        reward_fn=go2_reward,
+        reward_fn=reward_fn,
         min_base_height=0.15,
     )
     env.set_commands(lin_vel_x=0.4, lin_vel_y=0.0, ang_vel_yaw=0.0)
