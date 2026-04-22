@@ -59,6 +59,9 @@ class Go2WalkingEnv:
         self.actions = torch.zeros((self.num_envs, self.num_actions), device=self.device)
         self.last_actions = torch.zeros_like(self.actions)
         self.obs_buf = torch.zeros((self.num_envs, self.num_obs), device=self.device)
+        self.target_dof_pos = torch.zeros((self.num_envs, self.num_actions), device=self.device)
+        self._gravity_vec = torch.tensor([0.0, 0.0, -1.0], device=self.device).repeat(self.num_envs, 1)
+        self._up_vec = torch.tensor([0.0, 0.0, 1.0], device=self.device).repeat(self.num_envs, 1)
         
         # Episode tracking
         self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
@@ -296,12 +299,13 @@ class Go2WalkingEnv:
             info: Additional info dictionary
         """
         # Clip actions
-        self.actions = torch.clip(actions, -1.0, 1.0)
+        torch.clamp(actions, -1.0, 1.0, out=self.actions)
         
         # Apply actions to robot
-        target_dof_pos = self.default_dof_pos + self.actions * 0.25  # Scale actions
-        
-        self.robot.control_dofs_position(target_dof_pos, self.dof_indices)
+        self.target_dof_pos.copy_(self.default_dof_pos)
+        self.target_dof_pos.add_(self.actions, alpha=0.25)
+
+        self.robot.control_dofs_position(self.target_dof_pos, self.dof_indices)
         # Step simulation
         self.scene.step()
         
@@ -395,49 +399,41 @@ class Go2WalkingEnv:
     def _compute_observations(self):
         """Compute observations from current state"""
         # Get projected gravity (orientation information)
-        gravity_vec = torch.tensor([0.0, 0.0, -1.0], device=self.device)
-        proj_gravity = transform_by_quat(gravity_vec.repeat(self.num_envs, 1), inv_quat(self.base_quat))
+        base_quat_inv = inv_quat(self.base_quat)
+        proj_gravity = transform_by_quat(self._gravity_vec, base_quat_inv)
         
         # Compute velocity in base frame
-        base_lin_vel_base = transform_by_quat(self.base_lin_vel, inv_quat(self.base_quat))
-        base_ang_vel_base = transform_by_quat(self.base_ang_vel, inv_quat(self.base_quat))
+        base_lin_vel_base = transform_by_quat(self.base_lin_vel, base_quat_inv)
+        base_ang_vel_base = transform_by_quat(self.base_ang_vel, base_quat_inv)
 
-
-        # Assemble observations
-        obs = torch.cat([
-            base_lin_vel_base * 2.0,           # 3
-            base_ang_vel_base * 0.25,          # 3
-            proj_gravity,                      # 3
-            self.commands * 2.0,               # 3
-            self.dof_pos - self.default_dof_pos,  # 12
-            self.dof_vel * 0.05,               # 12
-            self.actions,                      # 12
-        ], dim=-1)
-        self.obs_buf[:] = obs
+        # Assemble observations in-place to avoid temporary cat allocations each step.
+        self.obs_buf[:, 0:3] = base_lin_vel_base * 2.0
+        self.obs_buf[:, 3:6] = base_ang_vel_base * 0.25
+        self.obs_buf[:, 6:9] = proj_gravity
+        self.obs_buf[:, 9:12] = self.commands * 2.0
+        self.obs_buf[:, 12:24] = self.dof_pos - self.default_dof_pos
+        self.obs_buf[:, 24:36] = self.dof_vel * 0.05
+        self.obs_buf[:, 36:48] = self.actions
     
     def _compute_rewards(self):
         obs = self.obs_buf
         actions = self.actions
-        up_vec = torch.tensor(
-            [0.0, 0.0, 1.0],  # note the floats
-            device=self.device,
-            dtype=self.base_quat.dtype,
-        ).repeat(self.num_envs, 1)
-        base_lin_vel_base = transform_by_quat(self.base_lin_vel, inv_quat(self.base_quat))
+        base_quat_inv = inv_quat(self.base_quat)
+        base_lin_vel_base = transform_by_quat(self.base_lin_vel, base_quat_inv)
+        orientation_error = 1.0 - transform_by_quat(self._up_vec, self.base_quat)[:, 2]
         info = { # TODO: clean up info dict
             "base_lin_vel_base": base_lin_vel_base,
             "base_vel": self.base_lin_vel,
             "base_ang_vel": self.base_ang_vel,
             "base_pos": self.base_pos,
             "base_init_pos": self.base_init_pos,
-            "orientation_error": 1.0 - transform_by_quat(up_vec, self.base_quat)[:, 2],
+            "orientation_error": orientation_error,
             "foot_contacts": self.foot_contacts,
             "dof_pos": self.dof_pos,
             "dof_vel": self.dof_vel,
             "default_dof_pos": self.default_dof_pos,
             "commands": self.commands,
             "base_height": self.base_pos[:, 2],
-            "foot_vel": self.robot.get_links_vel(self.foot_link_indices),
             "last_actions": self.last_actions,
             "reset_buf": self.reset_buf,
             "episode_length_buf": self.episode_length_buf,
@@ -452,8 +448,7 @@ class Go2WalkingEnv:
     
     # make_environment.py – _check_termination():
     def _check_termination(self):
-        gravity_vec = torch.tensor([0.0, 0.0, -1.0], device=self.device).repeat(self.num_envs, 1)
-        proj_gravity = transform_by_quat(gravity_vec, inv_quat(self.base_quat))
+        proj_gravity = transform_by_quat(self._gravity_vec, inv_quat(self.base_quat))
 
         roll_termination  = torch.abs(proj_gravity[:, 1]) > 0.342  # 20°
         pitch_termination = torch.abs(proj_gravity[:, 0]) > 0.522  # 30°
