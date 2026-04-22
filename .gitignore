@@ -3,6 +3,8 @@
 *.pth
 *.DS_Store
 *.csv
+*.pt
+*.mp4
 /test/.ipynb_checkpoints
 *.cpython-311.pyc
 */__pycache__/*
@@ -16,3 +18,4 @@
 /test/logs
 /test/checkpoints
 /test/train_script.sh
+/second_prototype/logs/
