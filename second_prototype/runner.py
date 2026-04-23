@@ -40,6 +40,14 @@ REWARD_CFG = {
 START_LIN_VEL_X = 0.15
 EVAL_LIN_VEL_X = 0.2
 
+CURRICULUM_CFG = {
+    "enabled": True,
+    "start_lin_vel_x": 0.15,
+    "max_lin_vel_x": 0.8,
+    "delta_lin_vel_x": 0.05,
+    "stage_iterations": 150,
+}
+
 
 def build_reward_fn() -> Rewards:
     scales = {k: v for k, v in REWARD_CFG.items() if k != "tracking_sigma"}
@@ -60,6 +68,45 @@ def build_env(device: str, num_envs: int, show_viewer: bool, lin_vel_x: float = 
     )
     env.set_commands(lin_vel_x=lin_vel_x, lin_vel_y=0.0, ang_vel_yaw=0.0)
     return env
+
+
+def train_with_speed_curriculum(
+    runner: OnPolicyRunner,
+    env: Go2WalkingEnv,
+    total_iterations: int,
+    cfg: dict,
+) -> None:
+    """Train in stages while gradually increasing target forward speed."""
+    if not cfg.get("enabled", False):
+        runner.learn(num_learning_iterations=total_iterations, init_at_random_ep_len=True)
+        return
+
+    speed = float(cfg["start_lin_vel_x"])
+    speed_max = float(cfg["max_lin_vel_x"])
+    speed_delta = float(cfg["delta_lin_vel_x"])
+    stage_iterations = int(cfg["stage_iterations"])
+    stage_iterations = max(1, stage_iterations)
+
+    completed = 0
+    stage_idx = 0
+    while completed < total_iterations:
+        remaining = total_iterations - completed
+        stage_iters = min(stage_iterations, remaining)
+
+        env.set_commands(lin_vel_x=speed, lin_vel_y=0.0, ang_vel_yaw=0.0)
+        print(
+            f"Curriculum Stage {stage_idx:02d} | lin_vel_x={speed:.2f} | "
+            f"iterations={stage_iters}"
+        )
+
+        runner.learn(
+            num_learning_iterations=stage_iters,
+            init_at_random_ep_len=(stage_idx == 0),
+        )
+
+        completed += stage_iters
+        speed = min(speed_max, speed + speed_delta)
+        stage_idx += 1
 
 def build_train_cfg(run_name: str) -> dict:
     return {
@@ -92,7 +139,7 @@ def build_train_cfg(run_name: str) -> dict:
         },
         "actor": {
             "class_name": "MLPModel",
-            "hidden_dims": [256, 256, 256],
+            "hidden_dims": [512, 256, 128],
             "activation": "elu",
             "obs_normalization": True,
             "distribution_cfg": {
@@ -103,7 +150,7 @@ def build_train_cfg(run_name: str) -> dict:
         },
         "critic": {
             "class_name": "MLPModel",
-            "hidden_dims": [256, 256, 256],
+            "hidden_dims": [512, 256, 128],
             "activation": "elu",
             "obs_normalization": True,
         },
@@ -193,8 +240,15 @@ def main(num_learning_iterations: int = 3000, make_video: bool = True) -> None:
     print(f"Run name: {run_name}")
     print(f"Logs: {log_dir}")
     print(f"Start command lin_vel_x: {START_LIN_VEL_X}")
+    if CURRICULUM_CFG["enabled"]:
+        print("Curriculum aktiv:", CURRICULUM_CFG)
 
-    runner.learn(num_learning_iterations=num_learning_iterations, init_at_random_ep_len=True)
+    train_with_speed_curriculum(
+        runner=runner,
+        env=env,
+        total_iterations=num_learning_iterations,
+        cfg=CURRICULUM_CFG,
+    )
 
     if make_video:
         latest_checkpoint = load_latest_checkpoint(runner, log_dir=log_dir, device=device)
