@@ -9,6 +9,8 @@ DEFAULT_SCALES = {
     "action_rate": -0.005,
     "similar_to_default": -0.1,
     "sideway_movement": -1.0,
+    "termination": 0.0,
+    "x_progress": 0.0,
 }
 
 class Rewards:
@@ -27,10 +29,13 @@ class Rewards:
         self.s_action_rate = float(self.scales["action_rate"])
         self.s_similar_to_default = float(self.scales["similar_to_default"])
         self.s_sideway_movement = float(self.scales["sideway_movement"])
+        self.s_termination = float(self.scales["termination"])
+        self.s_x_progress = float(self.scales["x_progress"])
 
 
     def __call__(self, obs, actions, info):
-        base_vel = info["base_lin_vel_base"]
+        # Match WalkRandomTerrain: use world-frame base linear velocity for these terms.
+        base_vel = info["base_vel"]
         base_ang_vel = info["base_ang_vel"]
         base_pos = info["base_pos"]
         base_init_pos = info["base_init_pos"]
@@ -38,6 +43,9 @@ class Rewards:
         default_dof_pos = info["default_dof_pos"]
         commands = info["commands"]
         last_actions = info["last_actions"]
+        reset_buf = info["reset_buf"]
+        episode_length_buf = info["episode_length_buf"]
+        max_episode_length = info["max_episode_length"]
 
         tracking_lin_vel_x = torch.exp(
             -torch.square(commands[:, 0] - base_vel[:, 0]) * self.inv_tracking_sigma
@@ -60,6 +68,11 @@ class Rewards:
             torch.abs(base_pos[:, 1] - base_init_pos[1]), max=2.0
         )
 
+        non_timeout_reset = (reset_buf == 1) & (episode_length_buf <= max_episode_length)
+        termination = non_timeout_reset.float()
+
+        x_progress = torch.clamp(base_pos[:, 0] - base_init_pos[0], max=1.0)
+
         reward = (
                 self.s_tracking_lin_vel_x * tracking_lin_vel_x
                 + self.s_tracking_ang_vel * tracking_ang_vel
@@ -68,5 +81,7 @@ class Rewards:
                 + self.s_action_rate * action_rate
                 + self.s_similar_to_default * similar_to_default
                 + self.s_sideway_movement * sideway_movement
+                + self.s_termination * termination
+                + self.s_x_progress * x_progress
         )
         return reward, tracking_lin_vel_x
