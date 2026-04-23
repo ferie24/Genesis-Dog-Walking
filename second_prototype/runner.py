@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+import statistics
 import sys
 from pathlib import Path
 
@@ -37,15 +38,19 @@ REWARD_CFG = {
     "tracking_sigma": 0.3,
 }
 
-START_LIN_VEL_X = 0.15
-EVAL_LIN_VEL_X = 0.2
+SEED = 1
+USE_TERRAIN = True
+EPISODE_LENGTH_S = 40.0
+START_LIN_VEL_X = 0.6
+EVAL_LIN_VEL_X = 0.6
 
 CURRICULUM_CFG = {
     "enabled": True,
-    "start_lin_vel_x": 0.15,
-    "max_lin_vel_x": 0.8,
+    "start_lin_vel_x": 0.6,
+    "max_lin_vel_x": 1.0,
     "delta_lin_vel_x": 0.05,
-    "stage_iterations": 150,
+    "curriculum_threshold": 0.85,
+    "stage_iterations": 100,
 }
 
 
@@ -60,8 +65,8 @@ def build_env(device: str, num_envs: int, show_viewer: bool, lin_vel_x: float = 
         num_envs=num_envs,
         device=device,
         show_viewer=show_viewer,
-        use_terrain=False,
-        episode_length_s=20.0,
+        use_terrain=USE_TERRAIN,
+        episode_length_s=EPISODE_LENGTH_S,
         min_up_dot=0.1,
         reward_fn=reward_fn,
         min_base_height=0.18,
@@ -84,6 +89,7 @@ def train_with_speed_curriculum(
     speed = float(cfg["start_lin_vel_x"])
     speed_max = float(cfg["max_lin_vel_x"])
     speed_delta = float(cfg["delta_lin_vel_x"])
+    curriculum_threshold = float(cfg["curriculum_threshold"])
     stage_iterations = int(cfg["stage_iterations"])
     stage_iterations = max(1, stage_iterations)
 
@@ -101,19 +107,36 @@ def train_with_speed_curriculum(
 
         runner.learn(
             num_learning_iterations=stage_iters,
-            init_at_random_ep_len=(stage_idx == 0),
+            init_at_random_ep_len=False,
         )
 
+        # Use recent mean reward as external curriculum signal.
+        # This mimics a threshold-based scheduler without changing rsl_rl internals.
+        mean_recent_reward = None
+        if len(runner.logger.rewbuffer) > 0:
+            mean_recent_reward = float(statistics.mean(runner.logger.rewbuffer))
+        if mean_recent_reward is not None and mean_recent_reward >= curriculum_threshold:
+            speed = min(speed_max, speed + speed_delta)
+            print(
+                f"Curriculum up: mean_reward={mean_recent_reward:.3f} >= {curriculum_threshold:.3f}"
+                f" -> lin_vel_x={speed:.2f}"
+            )
+        else:
+            if mean_recent_reward is not None:
+                print(
+                    f"Curriculum hold: mean_reward={mean_recent_reward:.3f} < {curriculum_threshold:.3f}"
+                    f" -> lin_vel_x={speed:.2f}"
+                )
+
         completed += stage_iters
-        speed = min(speed_max, speed + speed_delta)
         stage_idx += 1
 
 def build_train_cfg(run_name: str) -> dict:
     return {
         "run_name": run_name,
         "logger": "tensorboard",
-        "num_steps_per_env": 256,
-        "save_interval": 25,
+        "num_steps_per_env": 24,
+        "save_interval": 200,
         "obs_groups": {
             "actor": ["policy"],
             "critic": ["policy"],
@@ -127,11 +150,11 @@ def build_train_cfg(run_name: str) -> dict:
             "lam": 0.95,
             "value_loss_coef": 1.0,
             "entropy_coef": 0.01,
-            "learning_rate": 3e-4,
-            "max_grad_norm": 0.5,
+            "learning_rate": 1e-3,
+            "max_grad_norm": 1.0,
             "use_clipped_value_loss": True,
             "schedule": "adaptive",
-            "desired_kl": 0.005,
+            "desired_kl": 0.01,
             "normalize_advantage_per_mini_batch": False,
             "optimizer": "adam",
             "rnd_cfg": None,
@@ -144,7 +167,7 @@ def build_train_cfg(run_name: str) -> dict:
             "obs_normalization": True,
             "distribution_cfg": {
                 "class_name": "GaussianDistribution",
-                "init_std": 0.5,
+                "init_std": 1.0,
                 "std_type": "scalar",
             },
         },
@@ -217,9 +240,10 @@ def make_eval_video(
     print(f"Video gespeichert unter: {video_path}")
 
 
-def main(num_learning_iterations: int = 3000, make_video: bool = True) -> None:
+def main(num_learning_iterations: int = 5, make_video: bool = True) -> None:
+    torch.manual_seed(SEED)
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    num_envs = 512
+    num_envs = 1
 
     env = build_env(device=device, num_envs=num_envs, show_viewer=False, lin_vel_x=START_LIN_VEL_X)
     obs = env.get_observations()
@@ -240,6 +264,7 @@ def main(num_learning_iterations: int = 3000, make_video: bool = True) -> None:
     print(f"Run name: {run_name}")
     print(f"Logs: {log_dir}")
     print(f"Start command lin_vel_x: {START_LIN_VEL_X}")
+    print(f"Seed: {SEED}")
     if CURRICULUM_CFG["enabled"]:
         print("Curriculum aktiv:", CURRICULUM_CFG)
 
