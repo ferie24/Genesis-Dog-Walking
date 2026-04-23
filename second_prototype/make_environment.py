@@ -160,7 +160,9 @@ class Go2WalkingEnv:
                     horizontal_scale=0.1,
                     vertical_scale=0.005,
                     subterrain_size=(5.0, 5.0),
-                    subterrain_types=['flat', 'random_uniform'],
+                    # Genesis expects either a single terrain type string or a 2D list
+                    # matching n_subterrains.
+                    subterrain_types="fractal_terrain",
                     randomize=False,
                 ),
             )

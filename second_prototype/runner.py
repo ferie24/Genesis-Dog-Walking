@@ -41,6 +41,8 @@ REWARD_CFG = {
 SEED = 1
 USE_TERRAIN = True
 EPISODE_LENGTH_S = 40.0
+NUM_ENVS = 512
+DEFAULT_NUM_LEARNING_ITERATIONS = 3000
 START_LIN_VEL_X = 0.6
 EVAL_LIN_VEL_X = 0.6
 
@@ -65,7 +67,7 @@ def build_env(device: str, num_envs: int, show_viewer: bool, lin_vel_x: float = 
         num_envs=num_envs,
         device=device,
         show_viewer=show_viewer,
-        use_terrain=USE_TERRAIN,
+        use_terrain=False,
         episode_length_s=EPISODE_LENGTH_S,
         min_up_dot=0.1,
         reward_fn=reward_fn,
@@ -240,10 +242,10 @@ def make_eval_video(
     print(f"Video gespeichert unter: {video_path}")
 
 
-def main(num_learning_iterations: int = 5, make_video: bool = True) -> None:
+def main(num_learning_iterations: int = DEFAULT_NUM_LEARNING_ITERATIONS, make_video: bool = True) -> None:
     torch.manual_seed(SEED)
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    num_envs = 1
+    num_envs = NUM_ENVS
 
     env = build_env(device=device, num_envs=num_envs, show_viewer=False, lin_vel_x=START_LIN_VEL_X)
     obs = env.get_observations()
@@ -265,6 +267,8 @@ def main(num_learning_iterations: int = 5, make_video: bool = True) -> None:
     print(f"Logs: {log_dir}")
     print(f"Start command lin_vel_x: {START_LIN_VEL_X}")
     print(f"Seed: {SEED}")
+    print(f"Num envs: {num_envs}")
+    print(f"Total learning iterations: {num_learning_iterations}")
     if CURRICULUM_CFG["enabled"]:
         print("Curriculum aktiv:", CURRICULUM_CFG)
 
