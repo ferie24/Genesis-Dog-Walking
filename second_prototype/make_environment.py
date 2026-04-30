@@ -94,6 +94,10 @@ class Go2WalkingEnv:
             else lambda obs, actions, info: torch.zeros(self.num_envs, device=self.device)
         )
 
+        # Camera follow offsets relative to the tracked robot body.
+        self._camera_follow_offset = np.array([3.0, 3.0, 2.0], dtype=np.float32)
+        self._camera_lookat_offset = np.array([0.0, 0.0, 0.5], dtype=np.float32)
+
         # Initialize the simulation
         self._create_scene()
         self._add_terrain()
@@ -113,8 +117,20 @@ class Go2WalkingEnv:
         self._initialize_buffers()
 
     def get_camera(self): 
+        self._update_follow_camera()
         rgb, depth, segmentation, normal = self.camera.render(depth=True, segmentation=True, normal=True)
         return self.camera
+
+    def _update_follow_camera(self):
+        """Keep the camera centered on env 0 robot with fixed relative offsets."""
+        if not hasattr(self, "camera") or not hasattr(self, "base_pos"):
+            return
+
+        robot_pos = self.base_pos[0].detach().cpu().numpy()
+        self.camera.set_pose(
+            pos=robot_pos + self._camera_follow_offset,
+            lookat=robot_pos + self._camera_lookat_offset,
+        )
 
         
     def _create_scene(self):
@@ -166,11 +182,12 @@ class Go2WalkingEnv:
                     randomize=False,
                 ),
             )
-            self.base_init_pos = torch.tensor([2.5, 12.5, 0.42], device=self.device)
+            self.base_init_pos = torch.tensor([1.0, 1.0, 0.9], device=self.device)
         else:
             # Simple flat plane
             self.plane = self.scene.add_entity(gs.morphs.Plane())
-            self.base_init_pos = torch.tensor([0.0, 0.0, 0.42], device=self.device)
+            # Slightly lower spawn height to reduce nose-first resets on flat ground.
+            self.base_init_pos = torch.tensor([0.0, 0.0, 0.36], device=self.device)
     
     def _add_robot(self):
         """Add the Go2 robot to the scene"""
@@ -272,6 +289,7 @@ class Go2WalkingEnv:
         self.last_actions[env_ids].zero_()
 
         self._update_state()
+        self._update_follow_camera()
         self._compute_observations()
         
         return self.obs_buf
@@ -313,6 +331,7 @@ class Go2WalkingEnv:
         
         # Update state
         self._update_state()
+        self._update_follow_camera()
         
         # Compute observations and rewards
         self._compute_observations()

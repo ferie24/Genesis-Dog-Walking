@@ -67,7 +67,7 @@ def build_env(device: str, num_envs: int, show_viewer: bool, lin_vel_x: float = 
         num_envs=num_envs,
         device=device,
         show_viewer=show_viewer,
-        use_terrain=False,
+        use_terrain=USE_TERRAIN,
         episode_length_s=EPISODE_LENGTH_S,
         min_up_dot=0.1,
         reward_fn=reward_fn,
@@ -82,6 +82,10 @@ def train_with_speed_curriculum(
     env: Go2WalkingEnv,
     total_iterations: int,
     cfg: dict,
+    make_video: bool = True,
+    log_dir: Path = None,
+    device: str = "cpu",
+    run_name: str = "go2_genesis_rsl_rl",
 ) -> None:
     """Train in stages while gradually increasing target forward speed."""
     if not cfg.get("enabled", False):
@@ -112,26 +116,37 @@ def train_with_speed_curriculum(
             init_at_random_ep_len=False,
         )
 
-        # Use recent mean reward as external curriculum signal.
-        # This mimics a threshold-based scheduler without changing rsl_rl internals.
-        mean_recent_reward = None
-        if len(runner.logger.rewbuffer) > 0:
-            mean_recent_reward = float(statistics.mean(runner.logger.rewbuffer))
-        if mean_recent_reward is not None and mean_recent_reward >= curriculum_threshold:
+        # Use recent mean reward per step as external curriculum signal.
+        # rewbuffer contains EPISODE SUMS, so we normalize by episode length.
+        mean_per_step_reward = None
+        if len(runner.logger.rewbuffer) > 0 and len(runner.logger.lenbuffer) > 0:
+            mean_episode_reward = float(statistics.mean(runner.logger.rewbuffer))
+            mean_episode_length = float(statistics.mean(runner.logger.lenbuffer))
+            if mean_episode_length > 0:
+                mean_per_step_reward = mean_episode_reward / mean_episode_length
+        
+        if mean_per_step_reward is not None and mean_per_step_reward >= curriculum_threshold:
             speed = min(speed_max, speed + speed_delta)
             print(
-                f"Curriculum up: mean_reward={mean_recent_reward:.3f} >= {curriculum_threshold:.3f}"
+                f"Curriculum up: mean_reward_per_step={mean_per_step_reward:.3f} >= {curriculum_threshold:.3f}"
                 f" -> lin_vel_x={speed:.2f}"
             )
         else:
-            if mean_recent_reward is not None:
+            if mean_per_step_reward is not None:
                 print(
-                    f"Curriculum hold: mean_reward={mean_recent_reward:.3f} < {curriculum_threshold:.3f}"
+                    f"Curriculum hold: mean_reward_per_step={mean_per_step_reward:.3f} < {curriculum_threshold:.3f}"
                     f" -> lin_vel_x={speed:.2f}"
                 )
 
         completed += stage_iters
         stage_idx += 1
+    if make_video:
+        latest_checkpoint = load_latest_checkpoint(runner, log_dir=log_dir, device=device)
+        eval_env = build_env(device=device, num_envs=1, show_viewer=False, lin_vel_x=EVAL_LIN_VEL_X)
+        video_dir = project_root / "video" / run_name
+        video_dir.mkdir(parents=True, exist_ok=True)
+        video_path = video_dir / f"go2_eval_{latest_checkpoint.stem}.mp4"
+        make_eval_video(runner, eval_env, video_path, device=device)
 
 def build_train_cfg(run_name: str) -> dict:
     return {
@@ -277,16 +292,25 @@ def main(num_learning_iterations: int = DEFAULT_NUM_LEARNING_ITERATIONS, make_vi
         env=env,
         total_iterations=num_learning_iterations,
         cfg=CURRICULUM_CFG,
+        make_video=make_video,
+        log_dir=log_dir,
+        device=device,
+        run_name=run_name,
     )
 
     if make_video:
         latest_checkpoint = load_latest_checkpoint(runner, log_dir=log_dir, device=device)
         eval_env = build_env(device=device, num_envs=1, show_viewer=False, lin_vel_x=EVAL_LIN_VEL_X)
-        video_dir = project_root / "video"
+        video_dir = project_root / "video" / run_name
         video_dir.mkdir(parents=True, exist_ok=True)
         video_path = video_dir / f"go2_eval_{latest_checkpoint.stem}.mp4"
         make_eval_video(runner, eval_env, video_path, device=device)
 
 
 if __name__ == "__main__":
-    main()
+    # Quick debug mode to diagnose reward values
+    if "--debug" in sys.argv:
+        print("Running in DEBUG mode with only 10 iterations...")
+        main(num_learning_iterations=10, make_video=False)
+    else:
+        main()
