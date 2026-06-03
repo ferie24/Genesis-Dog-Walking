@@ -27,32 +27,60 @@ except Exception as exc:
 from make_environment import Go2WalkingEnv
 from reward import Rewards
 
-REWARD_CFG = {
-    "tracking_lin_vel_x": 1.0,
-    "tracking_ang_vel": 1.0,
-    "lin_vel_z": -1.0,
-    "lin_vel_y": -5.0,
-    "action_rate": -0.005,
-    "similar_to_default": -0.1,
-    "sideway_movement": -1.0,
-    "tracking_sigma": 0.3,
+"""REWARD_CFG = {
+    "tracking_lin_vel_x": 2.0,
+    "tracking_ang_vel": 0.5,
+    "lin_vel_z": -3.0,
+    "lin_vel_y": -1.0,
+    "action_rate": -0.02,
+    "similar_to_default": -0.05, # 3366 with 75
+    "sideway_movement": -0.5,
+    "tracking_sigma": 0.1,
 }
+print("REWARD_CFG:", REWARD_CFG)
 
 SEED = 1
-USE_TERRAIN = True
+USE_TERRAIN = False
 EPISODE_LENGTH_S = 40.0
-NUM_ENVS = 512
-DEFAULT_NUM_LEARNING_ITERATIONS = 3000
-START_LIN_VEL_X = 0.6
-EVAL_LIN_VEL_X = 0.6
+NUM_ENVS = 4096
+DEFAULT_NUM_LEARNING_ITERATIONS = 5000
+START_LIN_VEL_X = 0.3
+EVAL_LIN_VEL_X = 0.3
 
 CURRICULUM_CFG = {
-    "enabled": True,
-    "start_lin_vel_x": 0.6,
+    "enabled": False,
+    "start_lin_vel_x": 0.2,
     "max_lin_vel_x": 1.0,
-    "delta_lin_vel_x": 0.05,
-    "curriculum_threshold": 0.85,
-    "stage_iterations": 100,
+    "delta_lin_vel_x": 0.01,
+    "curriculum_threshold": 0.9,
+    "stage_iterations": 500,
+}"""
+REWARD_CFG = {
+    "tracking_lin_vel_x": 1.0, # stronger forward tracking incentive
+    "tracking_ang_vel": 0.5, # keep heading tracking but smaller
+    "lin_vel_z": -0.2, # disable vertical-velocity penalty to allow natural foot lift
+    "lin_vel_y": -0.2, # disable lateral-velocity penalty to allow slight side-stepping
+    "action_rate": -0.001, # small penalty on action magnitude to discourage chatter
+    "similar_to_default": 0.0, # mild regularization toward default pose
+    "sideway_movement": 0.0, # much reduced penalty on sideways motion
+    "tracking_sigma": 0.15, # slightly larger sigma for smoother target matching
+}
+print("REWARD_CFG:", REWARD_CFG)
+SEED = 1
+USE_TERRAIN = False
+EPISODE_LENGTH_S = 40.0
+NUM_ENVS = 4096
+DEFAULT_NUM_LEARNING_ITERATIONS = 6000
+START_LIN_VEL_X = 0.2 # start slightly lower so curriculum can increase safely
+EVAL_LIN_VEL_X = 0.2
+
+CURRICULUM_CFG = {
+"enabled": False,
+"start_lin_vel_x": 0.2,
+"max_lin_vel_x": 1.0,
+"delta_lin_vel_x": 0.001,
+"curriculum_threshold": 0.92,
+"stage_iterations": 250, 
 }
 
 
@@ -270,7 +298,7 @@ def main(num_learning_iterations: int = DEFAULT_NUM_LEARNING_ITERATIONS, make_vi
     logs_root = project_root / "logs"
     run_name, log_dir = reserve_run_version(logs_root=logs_root, base_run_name="go2_genesis_rsl_rl")
     train_cfg = build_train_cfg(run_name=run_name)
-
+    print("Trainingskonfiguration:", train_cfg)
     runner = OnPolicyRunner(
         env=env,
         train_cfg=train_cfg,

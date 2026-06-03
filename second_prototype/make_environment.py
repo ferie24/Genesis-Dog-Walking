@@ -83,7 +83,7 @@ class Go2WalkingEnv:
             0.0, 1.0, -1.5,  # RR
         ], device=self.device)
         self.default_dof_pos = self.default_dof_pos.unsqueeze(0).repeat(self.num_envs, 1)
-
+        self.body_contact_steps = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
         # PD controller gains
         self.kp = 20.0
         self.kd = 1.0 #0.5
@@ -214,15 +214,13 @@ class Go2WalkingEnv:
     
     def _setup_robot(self):
         """Configure robot motors and properties"""
-        # Get all dof names
         self.dof_names = [
             "FL_hip_joint", "FL_thigh_joint", "FL_calf_joint",
             "FR_hip_joint", "FR_thigh_joint", "FR_calf_joint",
             "RL_hip_joint", "RL_thigh_joint", "RL_calf_joint",
             "RR_hip_joint", "RR_thigh_joint", "RR_calf_joint",
         ]
-        
-        # Map dof names to local indices expected by Genesis
+
         self.dof_indices = []
         for name in self.dof_names:
             joint = self.robot.get_joint(name)
@@ -231,23 +229,28 @@ class Go2WalkingEnv:
                 self.dof_indices.append(int(idx_local[0]))
             else:
                 raise RuntimeError(f"Unexpected dof index format for joint {name}: {idx_local}")
-        
-        # Configure motors for each joint
+
         for dof_idx in self.dof_indices:
             self.robot.set_dofs_kp([self.kp], [dof_idx])
             self.robot.set_dofs_kv([self.kd], [dof_idx])
-            # Force range expects tensors sized like the provided indices
             self.robot.set_dofs_force_range([-23.7], [23.7], [dof_idx])
-        
-        # Get foot link names
+
         self.foot_links = ["FL_foot", "FR_foot", "RL_foot", "RR_foot"]
-        # Cache local indices for foot links (contact force tensor is ordered by local link index)
         self.foot_link_indices = []
         for name in self.foot_links:
             link = self.robot.get_link(name)
             if link is None:
                 raise RuntimeError(f"Foot link {name} not found in URDF.")
             self.foot_link_indices.append(int(link.idx - self.robot.link_start))
+
+        # Add this block
+        self.bad_contact_links = ["base", "FL_thigh", "FR_thigh"]
+        self.bad_contact_link_indices = []
+        for name in self.bad_contact_links:
+            link = self.robot.get_link(name)
+            if link is None:
+                raise RuntimeError(f"Bad contact link {name} not found in URDF.")
+            self.bad_contact_link_indices.append(int(link.idx - self.robot.link_start))
         
     def _initialize_buffers(self):
         """Initialize state buffers after scene is built"""
@@ -285,6 +288,8 @@ class Go2WalkingEnv:
             envs_idx=env_ids
         )
         
+        self.body_contact_steps[env_ids] = 0
+
         self.actions[env_ids].zero_()
         self.last_actions[env_ids].zero_()
 
@@ -469,21 +474,47 @@ class Go2WalkingEnv:
     
     # make_environment.py – _check_termination():
     def _check_termination(self):
-        proj_gravity = transform_by_quat(self._gravity_vec, inv_quat(self.base_quat))
+        base_quat_inv = inv_quat(self.base_quat)
+        proj_gravity = transform_by_quat(self._gravity_vec, base_quat_inv)
 
-        roll_termination  = torch.abs(proj_gravity[:, 1]) > 0.342  # 20°
-        pitch_termination = torch.abs(proj_gravity[:, 0]) > 0.522  # 30°
-        fall_termination  = self.base_pos[:, 2] < self.min_base_height
+        # Hard failures
+        roll_fail = torch.abs(proj_gravity[:, 1]) > 0.50   # loosen from 20 deg to ~29 deg
+        pitch_fail = torch.abs(proj_gravity[:, 0]) > 0.65  # loosen from 30 deg to ~40 deg
+        low_base_fail = self.base_pos[:, 2] < self.min_base_height
 
-        termination = roll_termination | pitch_termination | fall_termination
+        # Progress only after a longer grace period
+        base_lin_vel_base = transform_by_quat(self.base_lin_vel, base_quat_inv)
+        forward_vel = base_lin_vel_base[:, 0]
+        wants_forward = self.commands[:, 0] > 0.2
+        progress_fail = wants_forward & (forward_vel < 0.005) & (self.episode_length_buf > 300)
 
-        grace_mask = self.episode_length_buf < 40
-        return termination & ~grace_mask
+        # Persistent bad body contact
+        bad_body_contact_now = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
+        contact_forces = self.robot.get_links_net_contact_force(envs_idx=None)
 
+        if contact_forces is not None and not (hasattr(contact_forces, "numel") and contact_forces.numel() == 0):
+            cf = contact_forces if isinstance(contact_forces, torch.Tensor) else torch.as_tensor(contact_forces, device=self.device)
 
+            for idx in self.bad_contact_link_indices:
+                if idx < cf.shape[1]:
+                    # use a higher threshold to avoid landing spikes
+                    bad_body_contact_now |= (cf[:, idx].norm(dim=-1) > 5.0)
 
+        # longer grace period for touchdown settling
+        valid_for_contact_check = self.episode_length_buf > 40
+        bad_body_contact_now &= valid_for_contact_check
 
+        # require persistence over multiple steps
+        self.body_contact_steps = torch.where(
+            bad_body_contact_now,
+            self.body_contact_steps + 1,
+            torch.zeros_like(self.body_contact_steps),
+        )
 
+        body_contact_fail = self.body_contact_steps > 8  # ~0.16 s persistent contact
+
+        termination = roll_fail | pitch_fail | low_base_fail | progress_fail | body_contact_fail
+        return termination
     
     def set_commands(self, lin_vel_x, lin_vel_y, ang_vel_yaw):
         """
