@@ -19,3 +19,5 @@
 /test/checkpoints
 /test/train_script.sh
 /second_prototype/logs/
+/third_prototype/logs/
+/third_prototype/video/
