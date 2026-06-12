@@ -3,7 +3,7 @@
 #SBATCH --partition=gpu
 #SBATCH --gres=gpu:1
 #SBATCH --time=7:00:00
-#SBATCH --output=logs/%j.out
+#SBATCH --output=logs/slurm/%j.out
 
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate test

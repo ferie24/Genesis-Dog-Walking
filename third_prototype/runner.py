@@ -31,10 +31,10 @@ REWARD_CFG = {
     "tracking_lin_vel_x": 1.0,
     "tracking_ang_vel": 1.0,
     "lin_vel_z": -1.0,
-    "lin_vel_y": -5.0,
+    "lin_vel_y": -1.0,
     "action_rate": -0.005,
-    "similar_to_default": -0.1,
-    "sideway_movement": -1.0,
+    "similar_to_default": -0.5,
+    "sideway_movement": -0.1,
     "tracking_sigma": 0.3,
 }
 
@@ -42,12 +42,10 @@ SEED = 1
 USE_TERRAIN = False
 EPISODE_LENGTH_S = 20.0
 NUM_ENVS = 4096
-DEFAULT_NUM_LEARNING_ITERATIONS = 4000
-START_LIN_VEL_X = 0.4
-EVAL_LIN_VEL_X = 0.4
+DEFAULT_NUM_LEARNING_ITERATIONS = 5000
 
 CURRICULUM_CFG = {
-    "enabled": True,
+    "enabled": False,
     "start_lin_vel_x": 0.4,
     "max_lin_vel_x": 1.0,
     "delta_lin_vel_x": 0.05,
@@ -62,7 +60,7 @@ def build_reward_fn() -> Rewards:
     return Rewards(tracking_sigma=REWARD_CFG["tracking_sigma"], scales=scales)
 
 
-def build_env(device: str, num_envs: int, show_viewer: bool, lin_vel_x: float = START_LIN_VEL_X) -> Go2WalkingEnv:
+def build_env(device: str, num_envs: int, show_viewer: bool, lin_vel_x: float = CURRICULUM_CFG["start_lin_vel_x"]) -> Go2WalkingEnv:
     reward_fn = build_reward_fn()
     env = Go2WalkingEnv(
         num_envs=num_envs,
@@ -96,12 +94,12 @@ def build_train_cfg(run_name: str) -> dict:
             "gamma": 0.99,
             "lam": 0.95,
             "value_loss_coef": 1.0,
-            "entropy_coef": 0.01,
+            "entropy_coef": 0.001,
             "learning_rate": 0.001,
             "max_grad_norm": 1.0,
             "use_clipped_value_loss": True,
             "schedule": "adaptive",
-            "desired_kl": 0.01,
+            "desired_kl": 0.02,
             "normalize_advantage_per_mini_batch": False,
             "optimizer": "adam",
             "rnd_cfg": None,
@@ -116,6 +114,8 @@ def build_train_cfg(run_name: str) -> dict:
                 "class_name": "GaussianDistribution",
                 "init_std": 1.0,
                 "std_type": "scalar",
+                "learn_std": True,
+                "std_range": [1e-6, 1.0],
             },
         },
         "critic": {
@@ -192,7 +192,7 @@ def main(num_learning_iterations: int = DEFAULT_NUM_LEARNING_ITERATIONS, make_vi
     device = "cuda" if torch.cuda.is_available() else "cpu"
     num_envs = NUM_ENVS
 
-    env = build_env(device=device, num_envs=num_envs, show_viewer=False, lin_vel_x=START_LIN_VEL_X)
+    env = build_env(device=device, num_envs=num_envs, show_viewer=False, lin_vel_x=CURRICULUM_CFG["start_lin_vel_x"])
     obs = env.get_observations()
     print("Observation keys:", list(obs.keys()))
     print("Policy obs shape:", obs["policy"].shape)
@@ -210,7 +210,7 @@ def main(num_learning_iterations: int = DEFAULT_NUM_LEARNING_ITERATIONS, make_vi
     print("Runner ist bereit.")
     print(f"Run name: {run_name}")
     print(f"Logs: {log_dir}")
-    print(f"Start command lin_vel_x: {START_LIN_VEL_X}")
+    print(f"Start command lin_vel_x: {CURRICULUM_CFG['start_lin_vel_x']}")
     print(f"Seed: {SEED}")
     print(f"Num envs: {num_envs}")
     print(f"Total learning iterations: {num_learning_iterations}")
@@ -221,7 +221,7 @@ def main(num_learning_iterations: int = DEFAULT_NUM_LEARNING_ITERATIONS, make_vi
 
     
     latest_checkpoint = load_latest_checkpoint(runner, log_dir=log_dir, device=device)
-    eval_env = build_env(device=device, num_envs=1, show_viewer=False, lin_vel_x=EVAL_LIN_VEL_X)
+    eval_env = build_env(device=device, num_envs=1, show_viewer=False, lin_vel_x=CURRICULUM_CFG["start_lin_vel_x"])
     video_dir = project_root / "video" / run_name
     video_dir.mkdir(parents=True, exist_ok=True)
     video_path = video_dir / f"go2_eval_{latest_checkpoint.stem}.mp4"

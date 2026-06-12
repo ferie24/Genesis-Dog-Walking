@@ -14,7 +14,7 @@ DEFAULT_SCALES = {
 class Rewards:
     def __init__(self, tracking_sigma=0.25, scales=None):
         self.tracking_sigma = float(tracking_sigma)
-        self.inv_tracking_sigma = 1.0 / self.tracking_sigma
+        #self.inv_tracking_sigma = 1.0 / self.tracking_sigma
         resolved_scales = DEFAULT_SCALES.copy()
         if scales is not None:
             resolved_scales.update(scales)
@@ -43,11 +43,11 @@ class Rewards:
         
 
         tracking_lin_vel_x = torch.exp(
-            -torch.square(commands[:, 0] - base_vel[:, 0]) / self.inv_tracking_sigma
+            -torch.square(commands[:, 0] - base_vel[:, 0]) / self.tracking_sigma
         )
 
         tracking_ang_vel = torch.exp(
-            -torch.abs(commands[:, 2] - base_ang_vel[:, 2]) / self.inv_tracking_sigma
+            -torch.abs(commands[:, 2] - base_ang_vel[:, 2]) / self.tracking_sigma
         )
 
         lin_vel_z = torch.square(base_vel[:, 2])
