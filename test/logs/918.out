@@ -1,3 +1,0 @@
-Running on: cuda
-[38;5;226m[Genesis] [06:43:37] [WARNING] Neutral robot position (qpos0) exceeds joint limits.[0m
-slurmstepd-tujestpolin: error: *** JOB 918 ON tujestpolin CANCELLED AT 2026-03-26T07:35:39 ***

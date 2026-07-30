@@ -319,7 +319,7 @@ class Go2WalkingEnv:
             info: Additional info dictionary
         """
         # Clip actions
-        torch.clamp(actions, -1.0, 1.0, out=self.actions)
+        #torch.clamp(actions, -1.0, 1.0, out=self.actions)
         
         # Apply actions to robot
         self.target_dof_pos.copy_(self.default_dof_pos)
@@ -429,12 +429,12 @@ class Go2WalkingEnv:
         base_ang_vel_base = transform_by_quat(self.base_ang_vel, base_quat_inv)
 
         # Assemble observations in-place to avoid temporary cat allocations each step.
-        self.obs_buf[:, 0:3] = base_lin_vel_base * 2.0
-        self.obs_buf[:, 3:6] = base_ang_vel_base * 0.25
+        self.obs_buf[:, 0:3] = base_lin_vel_base #* 2.0
+        self.obs_buf[:, 3:6] = base_ang_vel_base #* 0.25
         self.obs_buf[:, 6:9] = proj_gravity
-        self.obs_buf[:, 9:12] = self.commands * 2.0
+        self.obs_buf[:, 9:12] = self.commands #* 2.0
         self.obs_buf[:, 12:24] = self.dof_pos - self.default_dof_pos
-        self.obs_buf[:, 24:36] = self.dof_vel * 0.05
+        self.obs_buf[:, 24:36] = self.dof_vel #* 0.05
         self.obs_buf[:, 36:48] = self.actions
     
     def _compute_rewards(self):

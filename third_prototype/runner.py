@@ -28,13 +28,13 @@ from make_environment import Go2WalkingEnv
 from reward import Rewards
 
 REWARD_CFG = {
-    "tracking_lin_vel_x": 1.0,
+    "tracking_lin_vel_x": 2.0,
     "tracking_ang_vel": 1.0,
-    "lin_vel_z": -1.0,
-    "lin_vel_y": -1.0,
-    "action_rate": -0.005,
-    "similar_to_default": -0.5,
-    "sideway_movement": -0.1,
+    "lin_vel_z": -0.0,
+    "lin_vel_y": -0.0,
+    "action_rate": -0.00,
+    "similar_to_default": -0.00,
+    "sideway_movement": -0.0,
     "tracking_sigma": 0.3,
 }
 
@@ -45,11 +45,11 @@ NUM_ENVS = 4096
 DEFAULT_NUM_LEARNING_ITERATIONS = 5000
 
 CURRICULUM_CFG = {
-    "enabled": False,
-    "start_lin_vel_x": 0.4,
+    "enabled": True,
+    "start_lin_vel_x": 0.2,
     "max_lin_vel_x": 1.0,
-    "delta_lin_vel_x": 0.05,
-    "curriculum_threshold": 0.85,
+    "delta_lin_vel_x": 0.5,
+    "curriculum_threshold": 0.085,
     "increase_anyway_threshold": 500,
     "threshold_size": 20
 }
@@ -76,35 +76,35 @@ def build_env(device: str, num_envs: int, show_viewer: bool, lin_vel_x: float = 
     return env
 
 
-def build_train_cfg(run_name: str) -> dict:
+utils
     return {
         "run_name": run_name,
         "logger": "tensorboard",
-        "num_steps_per_env": 24,
+        "num_steps_per_env": 32,
         "save_interval": 200,
         "obs_groups": {
             "actor": ["policy"],
             "critic": ["policy"],
         },
-        "algorithm": {
+       "algorithm": {
             "class_name": "PPO",
-            "clip_param": 0.2,
-            "num_learning_epochs": 5,
+            "clip_param": 0.2,# 0.2
+            "num_learning_epochs": 5, # 5
             "num_mini_batches": 4,
             "gamma": 0.99,
             "lam": 0.95,
-            "value_loss_coef": 1.0,
+            "value_loss_coef": 1.0,#1.0
             "entropy_coef": 0.001,
-            "learning_rate": 0.001,
+            "learning_rate": 1e-3,
             "max_grad_norm": 1.0,
             "use_clipped_value_loss": True,
-            "schedule": "adaptive",
-            "desired_kl": 0.02,
+            "schedule": "fixed",
+            "desired_kl": 0.01,
             "normalize_advantage_per_mini_batch": False,
             "optimizer": "adam",
             "rnd_cfg": None,
             "symmetry_cfg": None,
-        },
+            },
         "actor": {
             "class_name": "MLPModel",
             "hidden_dims": [512, 256, 128],
@@ -115,7 +115,7 @@ def build_train_cfg(run_name: str) -> dict:
                 "init_std": 1.0,
                 "std_type": "scalar",
                 "learn_std": True,
-                "std_range": [1e-6, 1.0],
+                "std_range": [1e-6, 0.7],
             },
         },
         "critic": {
