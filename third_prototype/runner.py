@@ -76,7 +76,7 @@ def build_env(device: str, num_envs: int, show_viewer: bool, lin_vel_x: float = 
     return env
 
 
-utils
+def build_train_cfg(run_name: str) -> dict:
     return {
         "run_name": run_name,
         "logger": "tensorboard",
