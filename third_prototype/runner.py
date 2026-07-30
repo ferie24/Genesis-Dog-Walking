@@ -36,6 +36,7 @@ REWARD_CFG = {
     "similar_to_default": -0.00,
     "sideway_movement": -0.0,
     "tracking_sigma": 0.3,
+    "x_progress": 0.0,
 }
 
 SEED = 1
@@ -94,7 +95,7 @@ def build_train_cfg(run_name: str) -> dict:
             "gamma": 0.99,
             "lam": 0.95,
             "value_loss_coef": 1.0,#1.0
-            "entropy_coef": 0.001,
+            "entropy_coef": 0.005,
             "learning_rate": 1e-3,
             "max_grad_norm": 1.0,
             "use_clipped_value_loss": True,

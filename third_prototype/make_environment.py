@@ -86,7 +86,7 @@ class Go2WalkingEnv:
 
         # PD controller gains
         self.kp = 20.0
-        self.kd = 1.0 #0.5
+        self.kd = 0.5
         
         self.reward_fn = (
             reward_fn
@@ -264,6 +264,11 @@ class Go2WalkingEnv:
         # Contact sensors
         self.foot_contacts = torch.zeros((self.num_envs, 4), device=self.device)
 
+        #X_progress tracking
+        self.prev_base_pos_x = self.base_pos[:, 0].clone()
+        self.x_progress = torch.zeros(self.num_envs, device=self.device)
+
+
     def reset(self, env_ids=None):
         if env_ids is None:
             env_ids = torch.arange(self.num_envs, device=self.device)
@@ -287,7 +292,9 @@ class Go2WalkingEnv:
         
         self.actions[env_ids].zero_()
         self.last_actions[env_ids].zero_()
-
+        self.prev_base_pos_x[env_ids] = pos_batch[:, 0]
+        self.x_progress[env_ids].zero_()
+        
         self._update_state()
         self._update_follow_camera()
         self._compute_observations()
@@ -393,12 +400,14 @@ class Go2WalkingEnv:
             if base_vel_np.shape[-1] < 6:
                 pad = np.zeros((base_vel_np.shape[0], 6 - base_vel_np.shape[-1]), dtype=base_vel_np.dtype)
                 base_vel_np = np.concatenate([base_vel_np, pad], axis=-1)
-            base_vel_t = torch.as_tensor(base_vel_np, device=self.device)
+            base_vel_t = torch.as_tensor(base_vel_np, device=self.device`
 
         dof_pos_t = to_torch(dof_pos)
         dof_vel_t = to_torch(dof_vel)
 
         self.base_pos.copy_(base_pos_t)
+        self.x_progress = (self.base_pos[:, 0] - self.prev_base_pos_x ) / self.dt
+        self.prev_base_pos_x.copy_(self.base_pos[:, 0])
         self.base_quat.copy_(base_quat_t)
         quat_norm = self.base_quat.norm(dim=-1, keepdim=True).clamp(min=1e-6)
         self.base_quat = self.base_quat / quat_norm
@@ -460,6 +469,7 @@ class Go2WalkingEnv:
             "reset_buf": self.reset_buf,
             "episode_length_buf": self.episode_length_buf,
             "max_episode_length": self.max_episode_length,
+            "x_progress": self.x_progress
         }
         reward_out = self.reward_fn(obs, actions, info)
         lin_vel_x_rew = None
