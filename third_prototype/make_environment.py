@@ -400,7 +400,7 @@ class Go2WalkingEnv:
             if base_vel_np.shape[-1] < 6:
                 pad = np.zeros((base_vel_np.shape[0], 6 - base_vel_np.shape[-1]), dtype=base_vel_np.dtype)
                 base_vel_np = np.concatenate([base_vel_np, pad], axis=-1)
-            base_vel_t = torch.as_tensor(base_vel_np, device=self.device`
+            base_vel_t = torch.as_tensor(base_vel_np, device=self.device)
 
         dof_pos_t = to_torch(dof_pos)
         dof_vel_t = to_torch(dof_vel)
