@@ -30,13 +30,13 @@ from reward import Rewards
 REWARD_CFG = {
     "tracking_lin_vel_x": 2.0,
     "tracking_ang_vel": 1.0,
-    "lin_vel_z": -0.0,
-    "lin_vel_y": -0.0,
-    "action_rate": -0.00,
-    "similar_to_default": -0.00,
-    "sideway_movement": -0.0,
+    "lin_vel_z": -0.2,
+    "lin_vel_y": -0.2,
+    "action_rate": -0.02,
+    "similar_to_default": -0.02,
+    "sideway_movement": -0.2,
     "tracking_sigma": 0.3,
-    "x_progress": 0.0,
+    "x_progress": 0.5,
 }
 
 SEED = 1
@@ -46,11 +46,11 @@ NUM_ENVS = 4096
 DEFAULT_NUM_LEARNING_ITERATIONS = 5000
 
 CURRICULUM_CFG = {
-    "enabled": True,
+    "enabled": False,
     "start_lin_vel_x": 0.2,
     "max_lin_vel_x": 1.0,
     "delta_lin_vel_x": 0.5,
-    "curriculum_threshold": 0.085,
+    "curriculum_threshold": 0.85,
     "increase_anyway_threshold": 500,
     "threshold_size": 20
 }
@@ -116,7 +116,7 @@ def build_train_cfg(run_name: str) -> dict:
                 "init_std": 1.0,
                 "std_type": "scalar",
                 "learn_std": True,
-                "std_range": [1e-6, 0.7],
+                "std_range": [1e-6, 1.0],
             },
         },
         "critic": {
