@@ -29,21 +29,22 @@ from make_environment import Go2WalkingEnv
 from reward import Rewards
 
 REWARD_CFG = {
-    "tracking_lin_vel_x": 3.0,
-    "tracking_ang_vel": 2.0,
+    "tracking_lin_vel_x": 2.0,
+    "tracking_ang_vel": 1.0,
     "lin_vel_z": -0.2,
     "lin_vel_y": -0.2,
     "action_rate": -0.02,
-    "similar_to_default": -0.02,
+    "similar_to_default": -0.05,   # stärker bestrafen, wenn er in Default-Pose "einfriert"
     "sideway_movement": -0.2,
-    "tracking_sigma": 0.3,
-    "x_progress": 1.5,
+    "tracking_sigma": 0.25,        # engerer Tracking-Bonus, belohnt genaueres Geschwindigkeitsmatching statt "gut genug" bei 0
+    "x_progress": 2.5,             # stärkerer Anreiz für tatsächlichen Vorwärtsfortschritt
 }
+
 
 SEED = 1
 USE_TERRAIN = False
 EPISODE_LENGTH_S = 20.0
-NUM_ENVS = 4096
+NUM_ENVS = 2048
 DEFAULT_NUM_LEARNING_ITERATIONS = 5000
 
 CURRICULUM_CFG = {
@@ -96,11 +97,11 @@ def build_train_cfg(run_name: str) -> dict:
             "gamma": 0.99,
             "lam": 0.95,
             "value_loss_coef": 1.0,#1.0
-            "entropy_coef": 0.005,
-            "learning_rate": 1e-3,
+            "entropy_coef": 0.02,
+            "learning_rate": 5e-4,
             "max_grad_norm": 1.0,
             "use_clipped_value_loss": True,
-            "schedule": "fixed",
+            "schedule": "adaptive",
             "desired_kl": 0.01,
             "normalize_advantage_per_mini_batch": False,
             "optimizer": "adam",

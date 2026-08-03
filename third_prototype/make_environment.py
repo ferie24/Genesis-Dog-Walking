@@ -492,13 +492,18 @@ class Go2WalkingEnv:
     
     # make_environment.py – _check_termination():
     def _check_termination(self):
-        proj_gravity = transform_by_quat(self._gravity_vec, inv_quat(self.base_quat))
+        base_quat_inv = inv_quat(self.base_quat)
+        proj_gravity = transform_by_quat(self._gravity_vec, base_quat_inv)
 
         roll_termination  = torch.abs(proj_gravity[:, 1]) > 0.342  # 20°
         pitch_termination = torch.abs(proj_gravity[:, 0]) > 0.522  # 30°
         fall_termination  = self.base_pos[:, 2] < self.min_base_height
 
-        termination = roll_termination | pitch_termination | fall_termination
+        base_lin_vel_base = transform_by_quat(self.base_lin_vel, base_quat_inv)
+        stall_termination = (self.episode_length_buf > 200) & (torch.abs(base_lin_vel_base[:, 0]) < 0.05)
+
+
+        termination = roll_termination | pitch_termination | fall_termination | stall_termination
 
         grace_mask = self.episode_length_buf < 40
         return termination & ~grace_mask
