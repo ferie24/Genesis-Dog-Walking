@@ -10,10 +10,11 @@ import genesis as gs
 import torch
 
 project_root = Path(__file__).resolve().parent
-local_rsl_rl = project_root / "rsl_rl"
-if str(local_rsl_rl) not in sys.path:
-    sys.path.insert(0, str(local_rsl_rl))
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
+import rsl_rl
+print(f"[DEBUG] rsl_rl geladen von: {rsl_rl.__file__}")
 
 from rsl_rl.runners import OnPolicyRunner
 
@@ -28,15 +29,15 @@ from make_environment import Go2WalkingEnv
 from reward import Rewards
 
 REWARD_CFG = {
-    "tracking_lin_vel_x": 2.0,
-    "tracking_ang_vel": 1.0,
+    "tracking_lin_vel_x": 3.0,
+    "tracking_ang_vel": 2.0,
     "lin_vel_z": -0.2,
     "lin_vel_y": -0.2,
     "action_rate": -0.02,
     "similar_to_default": -0.02,
     "sideway_movement": -0.2,
     "tracking_sigma": 0.3,
-    "x_progress": 0.5,
+    "x_progress": 1.5,
 }
 
 SEED = 1
@@ -71,7 +72,7 @@ def build_env(device: str, num_envs: int, show_viewer: bool, lin_vel_x: float = 
         episode_length_s=EPISODE_LENGTH_S,
         min_up_dot=0.1,
         reward_fn=reward_fn,
-        min_base_height=0.18,
+        min_base_height=0.22,
     )
     env.set_commands(lin_vel_x=lin_vel_x, lin_vel_y=0.0, ang_vel_yaw=0.0)
     return env
@@ -116,7 +117,7 @@ def build_train_cfg(run_name: str) -> dict:
                 "init_std": 1.0,
                 "std_type": "scalar",
                 "learn_std": True,
-                "std_range": [1e-6, 1.0],
+                "std_range": [1e-6, 2.0],
             },
         },
         "critic": {
