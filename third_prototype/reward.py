@@ -79,4 +79,4 @@ class Rewards:
                 + self.s_sideway_movement * sideway_movement
                 + self.s_x_progress * x_progress
         )
-        return reward, tracking_lin_vel_x * 0.1
+        return reward, tracking_lin_vel_x #* 0.1

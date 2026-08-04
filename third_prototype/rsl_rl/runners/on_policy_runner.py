@@ -289,12 +289,8 @@ class OnPolicyRunner:
             and it % increase_anyway_thresh == 0
         )
 
-        # Scalar curriculum signal: mean of first reward component if rewards are 2D,
-        # otherwise mean of the 1D reward tensor.
-        #print("Rewards: --------------------------", rewards)
         tracking_lin_vel_x = rewards[:, 0].mean() if rewards.ndim == 2 else rewards.mean()
 
-        # Persistent rolling buffer
         if not hasattr(self, "curriculum_buffer") or self.curriculum_buffer is None:
             self.curriculum_buffer = torch.zeros(
                 threshold_size, dtype=torch.float32, device=rewards.device
@@ -302,7 +298,6 @@ class OnPolicyRunner:
             self.counter = 0
             self.buffer_full = False
 
-        # If threshold_size changes in config, rebuild buffer safely
         if self.curriculum_buffer.numel() != threshold_size:
             self.curriculum_buffer = torch.zeros(
                 threshold_size, dtype=torch.float32, device=rewards.device
@@ -310,27 +305,52 @@ class OnPolicyRunner:
             self.counter = 0
             self.buffer_full = False
 
-        # Store newest scalar value in ring buffer
         self.curriculum_buffer[self.counter] = tracking_lin_vel_x.detach()
         self.counter = (self.counter + 1) % threshold_size
         if self.counter == 0:
             self.buffer_full = True
 
-        # Wait until buffer is full before applying curriculum
+        # --- NEU: immer die aktuelle Zielgeschwindigkeit + rohen Tracking-Wert loggen ---
+        if self.logger.writer is not None:
+            self.logger.writer.add_scalar("Curriculum/lin_vel_x_cmd", self.current_lin_vel_x, it)
+            self.logger.writer.add_scalar("Curriculum/tracking_lin_vel_x_raw", tracking_lin_vel_x.item(), it)
+            self.logger.writer.add_scalar("Curriculum/buffer_full", float(self.buffer_full), it)
+
         if not self.buffer_full:
             return
-        #print(self.curriculum_buffer)
+
         avg_tracking_lin_vel_x = self.curriculum_buffer.mean()
 
+        # --- NEU: geglätteten Buffer-Mittelwert immer loggen, sobald der Buffer voll ist ---
+        if self.logger.writer is not None:
+            self.logger.writer.add_scalar(
+                "Curriculum/avg_tracking_lin_vel_x", avg_tracking_lin_vel_x.item(), it
+            )
+            self.logger.writer.add_scalar(
+                "Curriculum/threshold", threshold, it
+            )
+            self.logger.writer.add_scalar(
+                "Curriculum/increase_anyway_flag", float(increase_anyway), it
+            )
+
         if avg_tracking_lin_vel_x >= threshold or increase_anyway:
-            # Handle scalar or vector current_lin_vel_x
             current_cmd = self.current_lin_vel_x
             new_lin_vel_x = min(current_cmd + delta_lin_vel_x, max_lin_vel_x)
             self.current_lin_vel_x = new_lin_vel_x
-            #print(f"Current lin_vel_x: {current_cmd}, New lin_vel_x: {new_lin_vel_x}")
             self.env.set_commands(lin_vel_x=new_lin_vel_x, lin_vel_y=0.0, ang_vel_yaw=0.0)
+
+            # --- NEU: expliziter Marker für den Curriculum-Sprung selbst ---
+            if self.logger.writer is not None:
+                self.logger.writer.add_scalar("Curriculum/step_event", 1.0, it)
+                self.logger.writer.add_scalar(
+                    "Curriculum/step_triggered_by_increase_anyway", float(increase_anyway), it
+                )
+
             print(
                 f"Updating curriculum at iteration {it}: "
                 f"avg_tracking_lin_vel_x={avg_tracking_lin_vel_x.item():.4f} "
                 f">= {threshold}, setting lin_vel_x to {new_lin_vel_x:.4f}"
             )
+            # reset Buffer 
+            self.counter = 0
+            self.buffer_full = False

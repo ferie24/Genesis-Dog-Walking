@@ -29,14 +29,14 @@ from make_environment import Go2WalkingEnv
 from reward import Rewards
 
 REWARD_CFG = {
-    "tracking_lin_vel_x": 2.0,
+    "tracking_lin_vel_x": 1.0,
     "tracking_ang_vel": 1.0,
-    "lin_vel_z": -0.2,
-    "lin_vel_y": -0.2,
-    "action_rate": -0.02,
-    "similar_to_default": -0.05,   # stärker bestrafen, wenn er in Default-Pose "einfriert"
-    "sideway_movement": -0.2,
-    "tracking_sigma": 0.25,        # engerer Tracking-Bonus, belohnt genaueres Geschwindigkeitsmatching statt "gut genug" bei 0
+    "lin_vel_z": -1.0,
+    "lin_vel_y": -1.0,
+    "action_rate": -0.005,
+    "similar_to_default": -0.1,   # stärker bestrafen, wenn er in Default-Pose "einfriert"
+    "sideway_movement": -1.0,
+    "tracking_sigma": 0.3,        # engerer Tracking-Bonus, belohnt genaueres Geschwindigkeitsmatching statt "gut genug" bei 0
     "x_progress": 2.5,             # stärkerer Anreiz für tatsächlichen Vorwärtsfortschritt
 }
 
@@ -44,16 +44,16 @@ REWARD_CFG = {
 SEED = 1
 USE_TERRAIN = False
 EPISODE_LENGTH_S = 20.0
-NUM_ENVS = 2048
+NUM_ENVS = 4096
 DEFAULT_NUM_LEARNING_ITERATIONS = 5000
 
 CURRICULUM_CFG = {
-    "enabled": False,
-    "start_lin_vel_x": 0.2,
+    "enabled": True,
+    "start_lin_vel_x": 0.0,
     "max_lin_vel_x": 1.0,
-    "delta_lin_vel_x": 0.5,
+    "delta_lin_vel_x": 0.05,
     "curriculum_threshold": 0.85,
-    "increase_anyway_threshold": 500,
+    "increase_anyway_threshold": 5000,
     "threshold_size": 20
 }
 
@@ -97,12 +97,12 @@ def build_train_cfg(run_name: str) -> dict:
             "gamma": 0.99,
             "lam": 0.95,
             "value_loss_coef": 1.0,#1.0
-            "entropy_coef": 0.02,
+            "entropy_coef": 0.001,
             "learning_rate": 5e-4,
             "max_grad_norm": 1.0,
             "use_clipped_value_loss": True,
             "schedule": "adaptive",
-            "desired_kl": 0.01,
+            "desired_kl": 0.015,
             "normalize_advantage_per_mini_batch": False,
             "optimizer": "adam",
             "rnd_cfg": None,
@@ -118,7 +118,7 @@ def build_train_cfg(run_name: str) -> dict:
                 "init_std": 1.0,
                 "std_type": "scalar",
                 "learn_std": True,
-                "std_range": [1e-6, 2.0],
+                "std_range": [1e-6, 1.2],
             },
         },
         "critic": {
@@ -219,6 +219,8 @@ def main(num_learning_iterations: int = DEFAULT_NUM_LEARNING_ITERATIONS, make_vi
     print(f"Total learning iterations: {num_learning_iterations}")
     if CURRICULUM_CFG["enabled"]:
         print("Curriculum aktiv:", CURRICULUM_CFG)
+    print("Reward configuration:", REWARD_CFG)
+    print("Train_cfg: ", train_cfg)
 
     runner.learn(num_learning_iterations=num_learning_iterations, curriculum=True, curriculum_cfg=CURRICULUM_CFG)
 

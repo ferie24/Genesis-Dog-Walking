@@ -499,11 +499,11 @@ class Go2WalkingEnv:
         pitch_termination = torch.abs(proj_gravity[:, 0]) > 0.522  # 30°
         fall_termination  = self.base_pos[:, 2] < self.min_base_height
 
-        base_lin_vel_base = transform_by_quat(self.base_lin_vel, base_quat_inv)
-        stall_termination = (self.episode_length_buf > 200) & (torch.abs(base_lin_vel_base[:, 0]) < 0.05)
+        #base_lin_vel_base = transform_by_quat(self.base_lin_vel, base_quat_inv)
+        #stall_termination = (self.episode_length_buf > 200) & (torch.abs(base_lin_vel_base[:, 0]) < 0.05)
 
 
-        termination = roll_termination | pitch_termination | fall_termination | stall_termination
+        termination = roll_termination | pitch_termination | fall_termination #| stall_termination
 
         grace_mask = self.episode_length_buf < 40
         return termination & ~grace_mask
