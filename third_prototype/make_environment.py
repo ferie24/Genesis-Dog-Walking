@@ -283,8 +283,9 @@ class Go2WalkingEnv:
         self.robot.set_pos(pos_batch, zero_velocity=True, envs_idx=env_ids)
         self.robot.set_quat(quat_batch, zero_velocity=True, envs_idx=env_ids)
         
+        dof_noise = torch.empty_like(self.default_dof_pos[env_ids]).uniform_(-0.1, 0.1)
         self.robot.set_dofs_position(
-            self.default_dof_pos[env_ids], 
+            self.default_dof_pos[env_ids] + dof_noise,
             self.dof_indices, 
             zero_velocity=True, 
             envs_idx=env_ids

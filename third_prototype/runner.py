@@ -97,7 +97,7 @@ def build_train_cfg(run_name: str) -> dict:
             "gamma": 0.99,
             "lam": 0.95,
             "value_loss_coef": 1.0,#1.0
-            "entropy_coef": 0.001,
+            "entropy_coef": 0.0025,
             "learning_rate": 5e-4,
             "max_grad_norm": 1.0,
             "use_clipped_value_loss": True,
@@ -115,7 +115,7 @@ def build_train_cfg(run_name: str) -> dict:
             "obs_normalization": True,
             "distribution_cfg": {
                 "class_name": "GaussianDistribution",
-                "init_std": 1.0,
+                "init_std": 0.8,
                 "std_type": "scalar",
                 "learn_std": True,
                 "std_range": [1e-6, 1.2],
@@ -222,7 +222,7 @@ def main(num_learning_iterations: int = DEFAULT_NUM_LEARNING_ITERATIONS, make_vi
     print("Reward configuration:", REWARD_CFG)
     print("Train_cfg: ", train_cfg)
 
-    runner.learn(num_learning_iterations=num_learning_iterations, curriculum=True, curriculum_cfg=CURRICULUM_CFG)
+    runner.learn(num_learning_iterations=num_learning_iterations, curriculum=True, curriculum_cfg=CURRICULUM_CFG, init_at_random_ep_len=True)
 
     
     latest_checkpoint = load_latest_checkpoint(runner, log_dir=log_dir, device=device)
