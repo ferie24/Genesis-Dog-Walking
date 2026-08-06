@@ -33,8 +33,8 @@ class Rewards:
 
 
     def __call__(self, obs, actions, info):
-        # Match WalkRandomTerrain: use world-frame base linear velocity for these terms.
-        base_vel = info["base_vel"]
+        # Nutze das LOKALE Koordinatensystem des Roboters für Geschwindigkeiten!
+        base_lin_vel_base = info["base_lin_vel_base"]  # <-- LOKAL (Getauscht)
         base_ang_vel = info["base_ang_vel"]
         base_pos = info["base_pos"]
         base_init_pos = info["base_init_pos"]
@@ -45,16 +45,18 @@ class Rewards:
         x_progress = info["x_progress"]
         
 
+        # Wir vergleichen jetzt das Kommando mit der LOKALEN X-Geschwindigkeit
         tracking_lin_vel_x = torch.exp(
-            -torch.square(commands[:, 0] - base_vel[:, 0]) / self.tracking_sigma
+            -torch.square(commands[:, 0] - base_lin_vel_base[:, 0]) / self.tracking_sigma
         )
 
         tracking_ang_vel = torch.exp(
             -torch.abs(commands[:, 2] - base_ang_vel[:, 2]) / self.tracking_sigma
         )
 
-        lin_vel_z = torch.square(base_vel[:, 2])
-        lin_vel_y = torch.square(base_vel[:, 1])
+        # Die Strafen auf Z und Y sollten auch im lokalen Frame evaluiert werden
+        lin_vel_z = torch.square(base_lin_vel_base[:, 2])
+        lin_vel_y = torch.square(base_lin_vel_base[:, 1])
 
         action_rate = torch.sum(torch.square(last_actions - actions), dim=1)
 
@@ -65,9 +67,6 @@ class Rewards:
         sideway_movement = torch.clamp(
             torch.abs(base_pos[:, 1] - base_init_pos[1]), max=2.0
         )       
-
-        
-
 
         reward = (
                 self.s_tracking_lin_vel_x * tracking_lin_vel_x

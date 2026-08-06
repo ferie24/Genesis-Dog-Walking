@@ -33,11 +33,11 @@ REWARD_CFG = {
     "tracking_ang_vel": 1.0,
     "lin_vel_z": -1.0,
     "lin_vel_y": -1.0,
-    "action_rate": -0.005,
-    "similar_to_default": -0.1,   # stärker bestrafen, wenn er in Default-Pose "einfriert"
+    "action_rate": -0.02,
+    "similar_to_default": -0.02,   # stärker bestrafen, wenn er in Default-Pose "einfriert"
     "sideway_movement": -1.0,
     "tracking_sigma": 0.3,        # engerer Tracking-Bonus, belohnt genaueres Geschwindigkeitsmatching statt "gut genug" bei 0
-    "x_progress": 2.5,             # stärkerer Anreiz für tatsächlichen Vorwärtsfortschritt
+    "x_progress": 0.0,             # stärkerer Anreiz für tatsächlichen Vorwärtsfortschritt
 }
 
 
@@ -49,9 +49,9 @@ DEFAULT_NUM_LEARNING_ITERATIONS = 5000
 
 CURRICULUM_CFG = {
     "enabled": True,
-    "start_lin_vel_x": 0.0,
+    "start_lin_vel_x": 0.3,
     "max_lin_vel_x": 1.0,
-    "delta_lin_vel_x": 0.05,
+    "delta_lin_vel_x": 0.15,
     "curriculum_threshold": 0.85,
     "increase_anyway_threshold": 5000,
     "threshold_size": 20
@@ -83,7 +83,7 @@ def build_train_cfg(run_name: str) -> dict:
     return {
         "run_name": run_name,
         "logger": "tensorboard",
-        "num_steps_per_env": 32,
+        "num_steps_per_env": 128,
         "save_interval": 200,
         "obs_groups": {
             "actor": ["policy"],
@@ -97,12 +97,12 @@ def build_train_cfg(run_name: str) -> dict:
             "gamma": 0.99,
             "lam": 0.95,
             "value_loss_coef": 1.0,#1.0
-            "entropy_coef": 0.0025,
-            "learning_rate": 5e-4,
+            "entropy_coef": 0.005,
+            "learning_rate": 5e-3,
             "max_grad_norm": 1.0,
             "use_clipped_value_loss": True,
             "schedule": "adaptive",
-            "desired_kl": 0.015,
+            "desired_kl": 0.02,
             "normalize_advantage_per_mini_batch": False,
             "optimizer": "adam",
             "rnd_cfg": None,
@@ -115,10 +115,10 @@ def build_train_cfg(run_name: str) -> dict:
             "obs_normalization": True,
             "distribution_cfg": {
                 "class_name": "GaussianDistribution",
-                "init_std": 0.8,
+                "init_std": 0.3,
                 "std_type": "scalar",
-                "learn_std": True,
-                "std_range": [1e-6, 1.2],
+                "learn_std": False,
+                "std_range": [1e-6, 1.0],
             },
         },
         "critic": {
