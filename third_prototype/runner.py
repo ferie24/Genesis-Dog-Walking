@@ -1,5 +1,6 @@
 from __future__ import annotations
-
+import argparse
+import wandb
 import logging
 import re
 import statistics
@@ -30,12 +31,12 @@ from reward import Rewards
 
 REWARD_CFG = {
     "tracking_lin_vel_x": 1.0,
-    "tracking_ang_vel": 1.0,
-    "lin_vel_z": -1.0,
+    "tracking_ang_vel": 1.0, #1.0,
+    "lin_vel_z": -5.0,
     "lin_vel_y": -1.0,
-    "action_rate": -0.02,
-    "similar_to_default": -0.02,   # stärker bestrafen, wenn er in Default-Pose "einfriert"
-    "sideway_movement": -1.0,
+    "action_rate": -0.005,
+    "similar_to_default": 0.0,# -0.1,   # stärker bestrafen, wenn er in Default-Pose "einfriert"
+    "sideway_movement":  0.0,#-1.0,
     "tracking_sigma": 0.3,        # engerer Tracking-Bonus, belohnt genaueres Geschwindigkeitsmatching statt "gut genug" bei 0
     "x_progress": 0.0,             # stärkerer Anreiz für tatsächlichen Vorwärtsfortschritt
 }
@@ -44,14 +45,14 @@ REWARD_CFG = {
 SEED = 1
 USE_TERRAIN = False
 EPISODE_LENGTH_S = 20.0
-NUM_ENVS = 4096
+NUM_ENVS = 1024
 DEFAULT_NUM_LEARNING_ITERATIONS = 5000
 
 CURRICULUM_CFG = {
-    "enabled": True,
-    "start_lin_vel_x": 0.3,
+    "enabled": False,
+    "start_lin_vel_x": 0.5,
     "max_lin_vel_x": 1.0,
-    "delta_lin_vel_x": 0.15,
+    "delta_lin_vel_x": 0.05,
     "curriculum_threshold": 0.85,
     "increase_anyway_threshold": 5000,
     "threshold_size": 20
@@ -83,7 +84,7 @@ def build_train_cfg(run_name: str) -> dict:
     return {
         "run_name": run_name,
         "logger": "tensorboard",
-        "num_steps_per_env": 128,
+        "num_steps_per_env": 24,
         "save_interval": 200,
         "obs_groups": {
             "actor": ["policy"],
@@ -115,7 +116,7 @@ def build_train_cfg(run_name: str) -> dict:
             "obs_normalization": True,
             "distribution_cfg": {
                 "class_name": "GaussianDistribution",
-                "init_std": 0.3,
+                "init_std": 1.0,
                 "std_type": "scalar",
                 "learn_std": False,
                 "std_range": [1e-6, 1.0],
@@ -169,6 +170,7 @@ def make_eval_video(
     video_path: Path,
     device: str,
     eval_steps: int = 800,
+    iteration: int = 0
 ) -> None:
     policy = runner.get_inference_policy(device=device)
     policy.eval()
@@ -180,7 +182,7 @@ def make_eval_video(
     with torch.no_grad():
         for _ in range(eval_steps):
             actions = policy(obs_td, stochastic_output=False)
-            actions = torch.clamp(actions, -1.0, 1.0)
+            #actions = torch.clamp(actions, -1.0, 1.0)
             obs_td, rewards, dones, extras = env.step(actions)
             cam.render()
             if bool(dones[0].item()):
@@ -189,11 +191,30 @@ def make_eval_video(
     cam.stop_recording(save_to_filename=str(video_path), fps=50)
     print(f"Video gespeichert unter: {video_path}")
 
+    if wandb.run is not None:  # Prüfen, ob WandB aktiv ist
+        wandb.log({
+            "Eval_Video": wandb.Video(str(video_path), fps=50, format="mp4")
+        }, step=iteration)  # Der step ordnet das Video dem richtigen Zeitpunkt zu
+
+
 
 def main(num_learning_iterations: int = DEFAULT_NUM_LEARNING_ITERATIONS, make_video: bool = True) -> None:
     torch.manual_seed(SEED)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     num_envs = NUM_ENVS
+    
+
+    parser = argparse.ArgumentParser()
+    #parser.add_argument("--run_name", type=str, default="go2_test")
+    parser.add_argument("--lr", type=float, default=0.001)
+    parser.add_argument("--num_envs", type=int, default=4096)
+    parser.add_argument("--action_rate_penalty", type=float, default=-0.005)
+    parser.add_argument("--debug", action="store_true")
+    args = parser.parse_args()
+
+    
+    
+
 
     env = build_env(device=device, num_envs=num_envs, show_viewer=False, lin_vel_x=CURRICULUM_CFG["start_lin_vel_x"])
     obs = env.get_observations()
@@ -203,12 +224,29 @@ def main(num_learning_iterations: int = DEFAULT_NUM_LEARNING_ITERATIONS, make_vi
     logs_root = project_root / "logs"
     run_name, log_dir = reserve_run_version(logs_root=logs_root, base_run_name="go2_genesis_rsl_rl")
     train_cfg = build_train_cfg(run_name=run_name)
-
+    # Nutze args für deine Configs
+    wandb.init(
+            
+            project="test",   # Name deines Projekts im Dashboard
+            name=train_cfg["run_name"],      # Name des aktuellen Laufs (z.B. v008)
+            config={                         # Speichert alle Parameter fürs spätere Vergleichen!
+                "Curriculum": CURRICULUM_CFG,
+                "Reward": REWARD_CFG,
+                "Train_cfg": train_cfg
+            },
+            sync_tensorboard=True,           # Der magische Trick! Zieht sich alle TB-Daten.
+            dir=project_root / "logs"
+        )
+    train_cfg["algorithm"]["learning_rate"] = args.lr
+    REWARD_CFG["action_rate"] = args.action_rate_penalty
+    #video_dir = project_root / "video" / run_name
     runner = OnPolicyRunner(
         env=env,
         train_cfg=train_cfg,
         log_dir=str(log_dir),
         device=device,
+        vid_interval=200,
+        video_dir= log_dir / "videos"
     )
     print("Runner ist bereit.")
     print(f"Run name: {run_name}")

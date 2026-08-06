@@ -9,6 +9,8 @@ from __future__ import annotations
 import os
 import time
 import torch
+from pathlib import Path
+import wandb
 
 from rsl_rl.algorithms import PPO
 from rsl_rl.env import VecEnv
@@ -23,11 +25,18 @@ class OnPolicyRunner:
     alg: PPO
     """The actor-critic algorithm."""
 
-    def __init__(self, env: VecEnv, train_cfg: dict, log_dir: str | None = None, device: str = "cpu") -> None:
+    def __init__(self, env: VecEnv, train_cfg: dict, 
+                 log_dir: str | None = None, 
+                 device: str = "cpu", 
+                 vid_interval: int = 200,
+                 video_dir: Path = Path("video.mp4"),) -> None:
         """Construct the runner, algorithm, and logging stack."""
         self.env = env
         self.cfg = train_cfg
         self.device = device
+        self.vid_interval = vid_interval
+        self.video_dir = video_dir
+        self.video_dir.mkdir(parents=True, exist_ok=True)
 
         # Setup multi-GPU training if enabled
         self._configure_multi_gpu()
@@ -61,7 +70,9 @@ class OnPolicyRunner:
               num_learning_iterations: int, 
               init_at_random_ep_len: bool = False, 
               curriculum: bool = False, 
-              curriculum_cfg: dict | None = None) -> None:
+              curriculum_cfg: dict | None = None,
+              ) -> None:
+        
         """Run the learning loop for the specified number of iterations."""
         # Randomize initial episode lengths (for exploration)
         if init_at_random_ep_len:
@@ -94,6 +105,10 @@ class OnPolicyRunner:
         for it in range(start_it, total_it):
             start = time.time()
             # Rollout
+            if it % self.vid_interval == 0 and self.logger.writer is not None:
+                print("Recording video for evaluation...")
+                cam = self.env.camera
+                cam.start_recording()
             with torch.inference_mode():
                 for _ in range(self.cfg["num_steps_per_env"]):
                     # Sample actions
@@ -112,6 +127,8 @@ class OnPolicyRunner:
                     intrinsic_rewards = self.alg.intrinsic_rewards if self.cfg["algorithm"]["rnd_cfg"] else None
                     # Book keeping
                     self.logger.process_env_step(rewards, dones, extras, intrinsic_rewards)
+                    if it % self.vid_interval == 0 and self.logger.writer is not None:
+                        cam.render()
 
                 stop = time.time()
                 collect_time = stop - start
@@ -119,6 +136,14 @@ class OnPolicyRunner:
 
                 # Compute returns
                 self.alg.compute_returns(obs)
+            if it % self.vid_interval == 0 and self.logger.writer is not None:
+                video_path = self.video_dir / f"go2_eval_{it}.mp4"
+                cam.stop_recording(save_to_filename=str(video_path), fps=50)
+                print(f"Video gespeichert unter: {video_path}")
+                if wandb.run is not None and video_path.exists():  # Prüfen, ob WandB aktiv ist
+                        wandb.log({
+                            "Eval_Video": wandb.Video(str(video_path), fps=50, format="mp4")
+                        }, step=it)  # Der step ordnet das Video dem richtigen Zeitpunkt zu
             if curriculum and curriculum_cfg is not None:
                 self.update_curriculum(curriculum_cfg, it, extras["lin_vel_x_rew"])
             # Update policy
