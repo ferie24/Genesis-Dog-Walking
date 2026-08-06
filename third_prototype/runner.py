@@ -44,7 +44,7 @@ REWARD_CFG = {
 
 SEED = 1
 USE_TERRAIN = False
-EPISODE_LENGTH_S = 20.0
+EPISODE_LENGTH_S = 30.0
 NUM_ENVS = 1024
 DEFAULT_NUM_LEARNING_ITERATIONS = 5000
 
@@ -84,7 +84,7 @@ def build_train_cfg(run_name: str) -> dict:
     return {
         "run_name": run_name,
         "logger": "tensorboard",
-        "num_steps_per_env": 24,
+        "num_steps_per_env": 1500,
         "save_interval": 200,
         "obs_groups": {
             "actor": ["policy"],
@@ -211,10 +211,6 @@ def main(num_learning_iterations: int = DEFAULT_NUM_LEARNING_ITERATIONS, make_vi
     parser.add_argument("--action_rate_penalty", type=float, default=-0.005)
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
-
-    
-    
-
 
     env = build_env(device=device, num_envs=num_envs, show_viewer=False, lin_vel_x=CURRICULUM_CFG["start_lin_vel_x"])
     obs = env.get_observations()
