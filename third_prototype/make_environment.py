@@ -169,25 +169,35 @@ class Go2WalkingEnv:
     def _add_terrain(self):
         """Add terrain (flat plane or complex terrain)"""
         if self.use_terrain:
-            # Complex terrain with height variations
+            # Complex terrain with height variations - smoothed out
             self.terrain = self.scene.add_entity(
                 gs.morphs.Terrain(
-                    n_subterrains=(5, 5),
-                    horizontal_scale=0.1,
-                    vertical_scale=0.005,
-                    subterrain_size=(5.0, 5.0),
-                    # Genesis expects either a single terrain type string or a 2D list
-                    # matching n_subterrains.
-                    subterrain_types="fractal_terrain",
+                    n_subterrains=(3, 1),
+                    # 1. Streckt das Gelände horizontal (Standard ist oft 0.25 oder 0.1).
+                    # Wenn wir es von 0.1 auf 0.2 oder 0.25 erhöhen, werden Steigungen flacher.
+                    horizontal_scale=0.25, 
+                    
+                    # 2. Staucht das Gelände vertikal. Wir halbieren die vertikale
+                    # Skalierung (von 0.005 auf 0.0025 oder 0.002), wodurch alle
+                    # Fraktale und Stufen nur noch halb so hoch ausfallen.
+                    vertical_scale=0.005, 
+                    
+                    subterrain_size=(12.0, 12.0),
+                    
+                    # fractal_terrain ist gut, aber du könntest hier auch "wave_terrain"
+                    # beimischen für sanfte Sinus-Hügel anstatt rauer Fraktale.
+                    subterrain_types="fractal_terrain", 
                     randomize=False,
                 ),
             )
-            self.base_init_pos = torch.tensor([1.0, 1.0, 0.9], device=self.device)
+            # Da das Terrain nun flacher ist, können wir den Roboter etwas niedriger spawnen
+            self.base_init_pos = torch.tensor([1.0, 1.0, 0.6], device=self.device)
         else:
             # Simple flat plane
             self.plane = self.scene.add_entity(gs.morphs.Plane())
             # Slightly lower spawn height to reduce nose-first resets on flat ground.
             self.base_init_pos = torch.tensor([0.0, 0.0, 0.36], device=self.device)
+
     
     def _add_robot(self):
         """Add the Go2 robot to the scene"""
@@ -327,8 +337,9 @@ class Go2WalkingEnv:
             info: Additional info dictionary
         """
         # Clip actions
+        # second without clamp, third with 12, first with normal -1 
         torch.clamp(actions, -1.0, 1.0, out=self.actions)
-        
+        #self.actions = actions
         # Apply actions to robot
         self.target_dof_pos.copy_(self.default_dof_pos)
         self.target_dof_pos.add_(self.actions, alpha=0.25)

@@ -46,6 +46,7 @@ class Rewards:
         
 
         # Wir vergleichen jetzt das Kommando mit der LOKALEN X-Geschwindigkeit
+        
         tracking_lin_vel_x = torch.exp(
             -torch.square(commands[:, 0] - base_lin_vel_base[:, 0]) / self.tracking_sigma
         )
