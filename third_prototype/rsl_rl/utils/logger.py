@@ -50,15 +50,15 @@ class Logger:
 
         # Create buffers
         self.ep_extras = []
-        self.rewbuffer = deque(maxlen=100)
-        self.lenbuffer = deque(maxlen=100)
+        self.rewbuffer = deque(maxlen=4096)
+        self.lenbuffer = deque(maxlen=4096)
         self.cur_reward_sum = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         self.cur_episode_length = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
 
         # Create RND buffers
         if self.cfg["algorithm"]["rnd_cfg"]:
-            self.erewbuffer = deque(maxlen=100)
-            self.irewbuffer = deque(maxlen=100)
+            self.erewbuffer = deque(maxlen=4096)
+            self.irewbuffer = deque(maxlen=4096)
             self.cur_ereward_sum = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
             self.cur_ireward_sum = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
 
@@ -164,6 +164,7 @@ class Logger:
         learning_rate: float,
         action_std: torch.Tensor,
         rnd_weight: float | None,
+        diagnostics: dict | None = None,
         print_minimal: bool = False,
         width: int = 80,
         pad: int = 40,
@@ -172,12 +173,24 @@ class Logger:
 
         If videos are available, they are uploaded to the logging service (W&B) as well.
         """
+        
         if self.writer is not None:
             collection_size = self.cfg["num_steps_per_env"] * self.num_envs * self.gpu_world_size
             iteration_time = collect_time + learn_time
             self.tot_timesteps += collection_size
             self.tot_time += iteration_time
+            # Custom Diagnostics logging
+            if diagnostics is not None:
+                for key, value in diagnostics.items():
 
+                    if isinstance(value, torch.Tensor):
+                        value = value.item()
+
+                    self.writer.add_scalar(
+                        f"Gait/{key}",
+                        value,
+                        it,
+                    )
             # Log episode extras
             extras_string = ""
             if self.ep_extras:

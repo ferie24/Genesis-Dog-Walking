@@ -69,7 +69,7 @@ class OnPolicyRunner:
     def learn(self, 
               num_learning_iterations: int, 
               init_at_random_ep_len: bool = False, 
-              curriculum: bool = False, 
+              #curriculum: bool = False, 
               curriculum_cfg: dict | None = None,
               ) -> None:
         
@@ -105,16 +105,32 @@ class OnPolicyRunner:
         for it in range(start_it, total_it):
             start = time.time()
             # Rollout
+            tracking_sum = torch.tensor(0.0, device=self.device)
+            tracking_count = 0  
             if it % self.vid_interval == 0 and self.logger.writer is not None:
                 print("Recording video for evaluation...")
                 cam = self.env.camera
                 cam.start_recording()
             with torch.inference_mode():
+                foot_sums = {
+                    "front_both_air": torch.zeros((), device=self.device),
+                    "rear_both_air": torch.zeros((), device=self.device),
+                    "flight": torch.zeros((), device=self.device),
+                    "all_four_contact": torch.zeros((), device=self.device),
+                    "diagonal_support": torch.zeros((), device=self.device),
+                    "undesired_contacts": torch.zeros((), device=self.device),
+                }   
+                
                 for _ in range(self.cfg["num_steps_per_env"]):
                     # Sample actions
                     actions = self.alg.act(obs)
                     # Step the environment
                     obs, rewards, dones, extras = self.env.step(actions.to(self.env.device))
+                    tracking_sum += extras["lin_vel_x_rew"].mean()
+                    tracking_count += 1
+                    for key, value in extras["foot_diag"].items():
+                        foot_sums[key] += value
+                    #contact_sums["undesired_contacts"] += extras["undesired_contacts"]
                     # Check for NaN values from the environment
                     if self.cfg.get("check_for_nan", True):
                         check_nan(obs, rewards, dones)
@@ -144,14 +160,23 @@ class OnPolicyRunner:
                         wandb.log({
                             "Eval_Video": wandb.Video(str(video_path), fps=50, format="mp4")
                         }, step=it)  # Der step ordnet das Video dem richtigen Zeitpunkt zu
-            if curriculum and curriculum_cfg is not None:
-                self.update_curriculum(curriculum_cfg, it, extras["lin_vel_x_rew"])
+            rollout_tracking = tracking_sum / tracking_count
+            if curriculum_cfg is not None and curriculum_cfg["enabled"]:
+                self.update_curriculum(
+                        curriculum_cfg,
+                        it,
+                        rollout_tracking
+                    )
             # Update policy
             loss_dict = self.alg.update()
 
             stop = time.time()
             learn_time = stop - start
             self.current_learning_iteration = it
+            num_steps = self.cfg["num_steps_per_env"]
+
+            foot_means = {    key: value / self.cfg["num_steps_per_env"]
+                        for key, value in foot_sums.items()}
 
             # Log information
             self.logger.log(
@@ -164,6 +189,7 @@ class OnPolicyRunner:
                 learning_rate=self.alg.learning_rate,
                 action_std=self.alg.get_policy().output_std,
                 rnd_weight=self.alg.rnd.weight if self.cfg["algorithm"]["rnd_cfg"] else None,
+                diagnostics=foot_means,
             )
 
             # Save model
@@ -174,6 +200,7 @@ class OnPolicyRunner:
         if self.logger.writer is not None:
             self.save(os.path.join(self.logger.log_dir, f"model_{self.current_learning_iteration}.pt"))  # type: ignore
             self.logger.stop_logging_writer()
+        return self.current_lin_vel_x
 
     def save(self, path: str, infos: dict | None = None) -> None:
         """Save the models and training state to a given path and upload them if external logging is used."""

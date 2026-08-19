@@ -10,6 +10,8 @@ DEFAULT_SCALES = {
     "similar_to_default": -0.1,
     "sideway_movement": -1.0,
     "x_progress": 1.0,
+    "orientation": 0.0,
+    "rear_legs_air": 0.0,
 }
 
 class Rewards:
@@ -29,7 +31,8 @@ class Rewards:
         self.s_similar_to_default = float(self.scales["similar_to_default"])
         self.s_sideway_movement = float(self.scales["sideway_movement"])
         self.s_x_progress = float(self.scales["x_progress"])
-        
+        self.s_orientation = float(self.scales.get("orientation", 0.0))
+        self.s_rear_legs_air = float(self.scales.get("rear_legs_air", 0.0))
 
 
     def __call__(self, obs, actions, info):
@@ -43,7 +46,10 @@ class Rewards:
         commands = info["commands"]
         last_actions = info["last_actions"]
         x_progress = info["x_progress"]
-        
+        projected_gravity = info["projected_gravity"]
+        foot_contacts = info["foot_contacts"]
+        commands = info["commands"]  
+
 
         # Wir vergleichen jetzt das Kommando mit der LOKALEN X-Geschwindigkeit
         
@@ -69,6 +75,23 @@ class Rewards:
             torch.abs(base_pos[:, 1] - base_init_pos[1]), max=2.0
         )       
 
+        orientation = torch.sqrt(
+            projected_gravity[:, 0] ** 2
+            + projected_gravity[:, 1] ** 2
+        )
+
+        contacts = foot_contacts > 0.5
+
+        rl = contacts[:, 2]
+        rr = contacts[:, 3]
+
+        both_rear_air = (~rl) & (~rr)
+
+        moving = commands[:, 0].abs() > 0.1
+
+        reward_rear_legs_air = both_rear_air.float() * moving.float()
+
+
         reward = (
                 self.s_tracking_lin_vel_x * tracking_lin_vel_x
                 + self.s_tracking_ang_vel * tracking_ang_vel
@@ -78,5 +101,7 @@ class Rewards:
                 + self.s_similar_to_default * similar_to_default
                 + self.s_sideway_movement * sideway_movement
                 + self.s_x_progress * x_progress
+                + self.s_orientation * orientation
+                + self.s_rear_legs_air * reward_rear_legs_air
         )
         return reward, tracking_lin_vel_x #* 0.1

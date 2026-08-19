@@ -28,7 +28,8 @@ except Exception as exc:
 
 from make_environment import Go2WalkingEnv
 from reward import Rewards
-
+from config import build_configs
+"""
 REWARD_CFG = {
     "tracking_lin_vel_x": 1.0,
     "tracking_ang_vel": 1.0, #1.0,
@@ -56,22 +57,31 @@ CURRICULUM_CFG = {
     "curriculum_threshold": 0.85,
     "increase_anyway_threshold": 5000,
     "threshold_size": 30
-}
+}"""
 
 
-def build_reward_fn() -> Rewards:
-    scales = {k: v for k, v in REWARD_CFG.items() if k != "tracking_sigma"}
-    return Rewards(tracking_sigma=REWARD_CFG["tracking_sigma"], scales=scales)
+def build_reward_fn(
+        reward_cfg: dict = None
+) -> Rewards:
+    scales = {k: v for k, v in reward_cfg.items() if k != "tracking_sigma"}
+    return Rewards(tracking_sigma=reward_cfg["tracking_sigma"], scales=scales)
 
 
-def build_env(device: str, num_envs: int, show_viewer: bool, lin_vel_x: float = CURRICULUM_CFG["start_lin_vel_x"]) -> Go2WalkingEnv:
-    reward_fn = build_reward_fn()
+def build_env(device: str, 
+              num_envs: int, 
+              show_viewer: bool, 
+              lin_vel_x: float = None, 
+              use_terrain: bool = None, 
+              episode_length_s: float = None, 
+              reward_cfg: dict = None
+              ) -> Go2WalkingEnv:
+    reward_fn = build_reward_fn(reward_cfg)
     env = Go2WalkingEnv(
         num_envs=num_envs,
         device=device,
         show_viewer=show_viewer,
-        use_terrain=USE_TERRAIN,
-        episode_length_s=EPISODE_LENGTH_S,
+        use_terrain= use_terrain,
+        episode_length_s=episode_length_s,
         min_up_dot=0.1,
         reward_fn=reward_fn,
         min_base_height=0.22,
@@ -79,7 +89,7 @@ def build_env(device: str, num_envs: int, show_viewer: bool, lin_vel_x: float = 
     env.set_commands(lin_vel_x=lin_vel_x, lin_vel_y=0.0, ang_vel_yaw=0.0)
     return env
 
-
+"""
 def build_train_cfg(run_name: str) -> dict:
     return {
         "run_name": run_name,
@@ -98,10 +108,10 @@ def build_train_cfg(run_name: str) -> dict:
             "gamma": 0.99,
             "lam": 0.95,
             "value_loss_coef": 1.0,
-            "entropy_coef": 0.001,
-            "learning_rate": 3e-4,
+            "entropy_coef": 0.005,
+            "learning_rate": 5e-4,
             "schedule": "adaptive",
-            "desired_kl": 0.01,
+            "desired_kl": 0.02,
             "max_grad_norm": 1.0,
             "use_clipped_value_loss": True,
             "normalize_advantage_per_mini_batch": False,
@@ -127,7 +137,7 @@ def build_train_cfg(run_name: str) -> dict:
             "obs_normalization": True,
         },
     }
-
+"""
 
 def _iter_from_name(path_obj: Path) -> int:
     match = re.search(r"model_(\d+)\.pt$", path_obj.name)
@@ -194,38 +204,45 @@ def make_eval_video(
             "Eval_Video": wandb.Video(str(video_path), fps=50, format="mp4")
         }, step=iteration)  # Der step ordnet das Video dem richtigen Zeitpunkt zu
 
+def get_config(config_name: str) -> dict:
+    configs = build_configs(config_name)
+    if not configs:
+        raise ValueError(f"Keine Konfiguration für '{config_name}' gefunden.")
+    return configs.get("Training_Config", {}), configs.get("Reward_Config", {}), configs.get("Curriculum_Config", {}), configs.get("Environment_Config", {})
 
 
-def main(num_learning_iterations: int = DEFAULT_NUM_LEARNING_ITERATIONS, make_video: bool = True) -> None:
-    torch.manual_seed(SEED)
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    num_envs = NUM_ENVS
-    
-
+def main() -> None:
     parser = argparse.ArgumentParser()
-    #parser.add_argument("--run_name", type=str, default="go2_test")
-    parser.add_argument("--lr", type=float, default=0.001)
-    parser.add_argument("--num_envs", type=int, default=4096)
-    parser.add_argument("--action_rate_penalty", type=float, default=-0.005)
-    parser.add_argument("--debug", action="store_true")
-    args = parser.parse_args()
+    parser.add_argument("--config_name", type=str, default="config_A", help="Name of the configuration file (without .py extension)")
+    train_cfg, reward_cfg, curriculum_cfg, env_cfg = get_config(parser.parse_args().config_name)
 
-    env = build_env(device=device, num_envs=num_envs, show_viewer=False, lin_vel_x=CURRICULUM_CFG["start_lin_vel_x"])
+    torch.manual_seed(env_cfg.get("seed", 1))
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    
+    env = build_env(device=device, 
+                    num_envs=env_cfg.get("num_envs", 4096), 
+                    show_viewer=False, 
+                    lin_vel_x=curriculum_cfg["start_lin_vel_x"], 
+                    use_terrain=env_cfg.get("use_terrain", True),
+                    episode_length_s=env_cfg.get("episode_length_s", 30.0), 
+                    reward_cfg=reward_cfg
+                    )
     obs = env.get_observations()
-    print("Observation keys:", list(obs.keys()))
-    print("Policy obs shape:", obs["policy"].shape)
+    #print("Observation keys:", list(obs.keys()))
+    #print("Policy obs shape:", obs["policy"].shape)
 
     logs_root = project_root / "logs"
-    run_name, log_dir = reserve_run_version(logs_root=logs_root, base_run_name="go2_genesis_rsl_rl")
-    train_cfg = build_train_cfg(run_name=run_name)
-    # Nutze args für deine Configs
+    run_name, log_dir = reserve_run_version(logs_root=logs_root, base_run_name="go2_genesis_rsl_rl"+f"_{parser.parse_args().config_name}")
+    
+    
     wandb.init(
-            project="Genesis_Dog_Walking",   # Name deines Projekts im Dashboard
-            name=train_cfg["run_name"] + "_Server",      # Name des aktuellen Laufs (z.B. v008)
-            config={                         # Speichert alle Parameter fürs spätere Vergleichen!
-                "Curriculum": CURRICULUM_CFG,
-                "Reward": REWARD_CFG,
-                "Train_cfg": train_cfg
+            project="Genesis_Dog_Walking",  
+            name=run_name,      
+            config={                         
+                "Curriculum": curriculum_cfg,
+                "Reward": reward_cfg,
+                "Train_cfg": train_cfg,
+                "Environement_cfg": env_cfg
             },
             sync_tensorboard=True,           # Der magische Trick! Zieht sich alle TB-Daten.
             dir=project_root / "logs"
@@ -244,20 +261,28 @@ def main(num_learning_iterations: int = DEFAULT_NUM_LEARNING_ITERATIONS, make_vi
     print("Runner ist bereit.")
     print(f"Run name: {run_name}")
     print(f"Logs: {log_dir}")
-    print(f"Start command lin_vel_x: {CURRICULUM_CFG['start_lin_vel_x']}")
-    print(f"Seed: {SEED}")
-    print(f"Num envs: {num_envs}")
-    print(f"Total learning iterations: {num_learning_iterations}")
-    if CURRICULUM_CFG["enabled"]:
-        print("Curriculum aktiv:", CURRICULUM_CFG)
-    print("Reward configuration:", REWARD_CFG)
+    print(f"Start command lin_vel_x: {curriculum_cfg['start_lin_vel_x']}")
+    #print(f"Num envs: {env_cfg.get("num_envs", 4096)}")
+    print(f"Total learning iterations: {train_cfg.get('num_learning_iterations', 4000)}")
+    if curriculum_cfg["enabled"]:
+        print("Curriculum aktiv:", curriculum_cfg)
+    print("Reward configuration:", reward_cfg)
     print("Train_cfg: ", train_cfg)
 
-    runner.learn(num_learning_iterations=num_learning_iterations, curriculum=True, curriculum_cfg=CURRICULUM_CFG, init_at_random_ep_len=True)
+    final_vel = runner.learn(num_learning_iterations=train_cfg.get('num_learning_iterations', 4000), 
+                 #curriculum=True, 
+                 curriculum_cfg=curriculum_cfg, 
+                 init_at_random_ep_len=True)
 
     
     latest_checkpoint = load_latest_checkpoint(runner, log_dir=log_dir, device=device)
-    eval_env = build_env(device=device, num_envs=1, show_viewer=False, lin_vel_x=CURRICULUM_CFG["start_lin_vel_x"])
+    eval_env = build_env(device=device, 
+                         num_envs=1, 
+                         show_viewer=False, 
+                         lin_vel_x=final_vel,
+                         use_terrain=env_cfg.get("use_terrain", True),
+                         episode_length_s=env_cfg.get("episode_length_s", 30.0), 
+                         reward_cfg=reward_cfg)
     video_dir = project_root / "video" / run_name
     video_dir.mkdir(parents=True, exist_ok=True)
     video_path = video_dir / f"go2_eval_{latest_checkpoint.stem}.mp4"

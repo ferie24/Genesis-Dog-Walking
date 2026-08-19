@@ -196,7 +196,7 @@ class PPO:
         mean_rnd_loss = 0 if self.rnd else None
         # Symmetry loss
         mean_symmetry_loss = 0 if self.symmetry else None
-
+        mean_kl = 0.0
         # Get mini-batch generator
         if self.actor.is_recurrent or self.critic.is_recurrent:
             generator = self.storage.recurrent_mini_batch_generator(self.num_mini_batches, self.num_learning_epochs)
@@ -235,7 +235,7 @@ class PPO:
                 with torch.inference_mode():
                     kl = self.actor.get_kl_divergence(batch.old_distribution_params, distribution_params)  # type: ignore
                     kl_mean = torch.mean(kl)
-
+                    mean_kl += kl_mean.item()
                     # Reduce the KL divergence across all GPUs
                     if self.is_multi_gpu:
                         torch.distributed.all_reduce(kl_mean, op=torch.distributed.ReduceOp.SUM)
@@ -326,12 +326,13 @@ class PPO:
             mean_rnd_loss /= num_updates
         if mean_symmetry_loss is not None:
             mean_symmetry_loss /= num_updates
-
+        mean_kl /= num_updates
         # Construct the loss dictionary
         loss_dict = {
             "value": mean_value_loss,
             "surrogate": mean_surrogate_loss,
             "entropy": mean_entropy,
+            "kl": mean_kl,
         }
         if self.rnd:
             loss_dict["rnd"] = mean_rnd_loss

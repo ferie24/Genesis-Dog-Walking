@@ -182,7 +182,7 @@ class Go2WalkingEnv:
                     # Fraktale und Stufen nur noch halb so hoch ausfallen.
                     vertical_scale=0.005, 
                     
-                    subterrain_size=(12.0, 12.0),
+                    subterrain_size = (25, 15),
                     
                     # fractal_terrain ist gut, aber du könntest hier auch "wave_terrain"
                     # beimischen für sanfte Sinus-Hügel anstatt rauer Fraktale.
@@ -191,7 +191,7 @@ class Go2WalkingEnv:
                 ),
             )
             # Da das Terrain nun flacher ist, können wir den Roboter etwas niedriger spawnen
-            self.base_init_pos = torch.tensor([1.0, 1.0, 0.6], device=self.device)
+            self.base_init_pos = torch.tensor([5.0, 5.0, 1.0], device=self.device)
         else:
             # Simple flat plane
             self.plane = self.scene.add_entity(gs.morphs.Plane())
@@ -370,9 +370,15 @@ class Go2WalkingEnv:
 
         if done_buf.any():
             self.reset(done_buf.nonzero(as_tuple=False).flatten())
+
+        foot_diag = self._compute_foot_diagnostics()
+        foot_diag.update(self._compute_undesired_body_contacts())
         extras = {
             "time_outs": time_outs_out.float(),
             "lin_vel_x_rew": lin_vel_x_rew,
+            "foot_diag": foot_diag,
+            #"undesired_contacts": undesired_contacts,
+
         }
         return self.get_observations(), rewards, done_buf, extras
 
@@ -481,7 +487,10 @@ class Go2WalkingEnv:
             "reset_buf": self.reset_buf,
             "episode_length_buf": self.episode_length_buf,
             "max_episode_length": self.max_episode_length,
-            "x_progress": self.x_progress
+            "x_progress": self.x_progress, 
+            "projected_gravity": transform_by_quat(self._gravity_vec, base_quat_inv),
+            "foot_contacts": self.foot_contacts,
+            "commands": self.commands,
         }
         reward_out = self.reward_fn(obs, actions, info)
         lin_vel_x_rew = None
@@ -558,4 +567,56 @@ class Go2WalkingEnv:
                 GUI=False,
                 res=(720, 720),                      
             )
+    def _compute_foot_diagnostics(self):
+        contacts = self.foot_contacts > 0.5
+
+        fl = contacts[:, 0]
+        fr = contacts[:, 1]
+        rl = contacts[:, 2]
+        rr = contacts[:, 3]
+
+        front_both_air = ~fl & ~fr
+        rear_both_air = ~rl & ~rr
+
+        num_contacts = contacts.sum(dim=1)
+
+        flight = num_contacts == 0
+        all_four_contact = num_contacts == 4
+
+        diagonal_support = (
+            (fl & rr & ~fr & ~rl)
+            |
+            (fr & rl & ~fl & ~rr)
+        )
+
+        return {
+            "front_both_air": front_both_air.float().mean(),
+            "rear_both_air": rear_both_air.float().mean(),
+            "flight": flight.float().mean(),
+            "all_four_contact": all_four_contact.float().mean(),
+            "diagonal_support": diagonal_support.float().mean(),
+        }
+    
+    def _compute_undesired_body_contacts(self):
+        """Compute undesired body contacts (excluding feet)"""
+        # RigidEntity does not expose a get_links() method.  The contact-force
+        # tensor is already indexed by local link index, so mask out the feet
+        # using the indices cached during robot setup.
+        contact_forces = self.robot.get_links_net_contact_force(envs_idx=None)
+        contact_mask = contact_forces.norm(dim=-1) > 1.0
+
+        foot_mask = torch.zeros(
+            contact_mask.shape[1], device=contact_mask.device, dtype=torch.bool
+        )
+        valid_foot_indices = [
+            idx for idx in self.foot_link_indices if 0 <= idx < contact_mask.shape[1]
+        ]
+        if valid_foot_indices:
+            foot_mask[valid_foot_indices] = True
+
+        return {
+            "undesired_contacts": (
+                contact_mask & ~foot_mask.unsqueeze(0)
+            ).sum(dim=1).float().mean(),
+        }
     
