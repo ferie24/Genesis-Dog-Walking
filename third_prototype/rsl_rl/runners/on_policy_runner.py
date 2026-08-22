@@ -118,7 +118,14 @@ class OnPolicyRunner:
                     "flight": torch.zeros((), device=self.device),
                     "all_four_contact": torch.zeros((), device=self.device),
                     "diagonal_support": torch.zeros((), device=self.device),
-                    "undesired_contacts": torch.zeros((), device=self.device),
+                    "undesired_contact_count": torch.zeros((), device=self.device),
+                    "undesired_contact_fraction": torch.zeros((), device=self.device),
+                    "roll_termination_fraction": torch.zeros((), device=self.device),
+                    "pitch_termination_fraction": torch.zeros((), device=self.device),
+                    "fall_termination_fraction": torch.zeros((), device=self.device),
+                    "heading_error_abs_mean": torch.zeros((), device=self.device),
+                    "heading_error_signed_mean": torch.zeros((), device=self.device),
+                    "heading_error_abs_max": torch.zeros((), device=self.device)
                 }   
                 
                 for _ in range(self.cfg["num_steps_per_env"]):

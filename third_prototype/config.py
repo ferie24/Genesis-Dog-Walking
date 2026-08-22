@@ -3,43 +3,51 @@ from copy import deepcopy
 
 def build_configs(config_name: str) -> dict:
     """
-    Rear-leg hopping experiment series.
+    Exploration / policy-std sweep.
 
     Goal:
-        Reduce the undesired gait pattern where both rear legs leave
-        the ground together, while preserving the otherwise solid
-        walking behavior seen in the previous D run.
+        Test whether the repeatedly observed rise of Policy/mean_std toward 1.0
+        is responsible for unstable training and poor deterministic evaluation.
 
-    IMPORTANT:
-        These configs assume that Reward_Config supports the key
+    Baseline:
+        - orientation = -0.25
+        - heading_error = 0.0
+        - rear_legs_air = 0.0
+        - fixed command = 0.5 m/s
+        - terrain enabled
+        - fixed PPO learning rate = 3e-4
 
-            "rear_pair_airborne"
+    Suggested order:
+        config_A -> config_B -> config_C -> config_D -> config_E -> config_F
 
-        and that the corresponding reward function returns a positive
-        penalty quantity, which is multiplied by the negative scale
-        defined here.
+    Important diagnostics:
+        Policy/mean_std
+        Train/mean_reward
+        Train/mean_episode_length
+        Loss/value
 
-    Recommended order:
-        config_A -> config_B -> config_C -> config_D
+        Gait/rear_both_air
+        Gait/diagonal_support
+        Gait/undesired_contact_fraction
 
-    Logged gait metrics should include:
-        Gait/front_both_air_fraction
-        Gait/rear_both_air_fraction
-        Gait/flight_fraction
-        Gait/all_four_contact_fraction
-        Gait/diagonal_support_fraction
+        heading_error_abs_mean
+        roll_termination
+        pitch_termination
+        fall_termination
 
-    Keep all other code and hyperparameters unchanged between runs.
+    Config F is a control experiment:
+        fixed Gaussian std = 0.30
+        learn_std = False
+        entropy_coef = 0.0
     """
 
     # ============================================================
-    # CONFIG A — WALKING BASELINE
+    # CONFIG A — CURRENT EXPLORATION BASELINE
     #
-    # Reproduces the previous D-type baseline:
-    #   - solid forward walking
-    #   - but noticeable simultaneous rear-leg hopping
-    #
-    # No rear-pair penalty yet.
+    # Reference:
+    #   entropy_coef = 0.005
+    #   learn_std = True
+    #   std_range = [0.05, 1.0]
     # ============================================================
 
     config_A = {
@@ -79,7 +87,6 @@ def build_configs(config_name: str) -> dict:
                 "hidden_dims": [512, 256, 128],
                 "activation": "elu",
                 "obs_normalization": True,
-
                 "distribution_cfg": {
                     "class_name": "GaussianDistribution",
                     "init_std": 0.5,
@@ -108,9 +115,10 @@ def build_configs(config_name: str) -> dict:
             "tracking_sigma": 0.1,
             "x_progress": 0.5,
 
-            # New gait term.
-            # Baseline: disabled.
+            # Keep these fixed during the exploration sweep.
+            "orientation": -0.25,
             "rear_legs_air": 0.0,
+            "heading_error": 0.0,
         },
 
         "Curriculum_Config": {
@@ -135,54 +143,77 @@ def build_configs(config_name: str) -> dict:
         return deepcopy(config_A)
 
     # ============================================================
-    # CONFIG B — LIGHT REAR-PAIR PENALTY
-    #
-    # Hypothesis:
-    #   A small penalty is enough to discourage simultaneous rear
-    #   flight without preventing useful swing phases.
+    # CONFIG B — LOWER ENTROPY PRESSURE
     #
     # Only change:
-    #   rear_pair_airborne: 0.0 -> -0.05
+    #   entropy_coef: 0.005 -> 0.003
     # ============================================================
-
     elif config_name == "config_B":
         cfg = deepcopy(config_A)
-        cfg["Reward_Config"]["rear_legs_air"] = -0.05
+        cfg["Training_Config"]["algorithm"]["entropy_coef"] = 0.003
         return cfg
 
     # ============================================================
-    # CONFIG C — MEDIUM REAR-PAIR PENALTY
-    #
-    # Hypothesis:
-    #   A stronger penalty further reduces the rear-leg hopping
-    #   while still preserving locomotion.
+    # CONFIG C — EVEN LOWER ENTROPY PRESSURE
     #
     # Only change:
-    #   rear_legs_air: 0.0 -> -0.10
+    #   entropy_coef: 0.005 -> 0.002
     # ============================================================
-
     elif config_name == "config_C":
         cfg = deepcopy(config_A)
-        cfg["Reward_Config"]["rear_legs_air"] = -0.10
+        cfg["Training_Config"]["algorithm"]["entropy_coef"] = 0.002
         return cfg
 
     # ============================================================
-    # CONFIG D — STRONG REAR-PAIR PENALTY
+    # CONFIG D — MODERATE ENTROPY + MODERATE STD CAP
     #
-    # Hypothesis:
-    #   Tests whether a clearly stronger penalty is required.
-    #
-    # Risk:
-    #   The robot may avoid rear-leg flight by dragging the rear
-    #   feet instead of learning a clean alternating gait.
-    #
-    # Only change:
-    #   rear_pair_airborne: 0.0 -> -0.20
+    # Changes:
+    #   entropy_coef: 0.005 -> 0.003
+    #   std_max:      1.0   -> 0.75
     # ============================================================
-
     elif config_name == "config_D":
         cfg = deepcopy(config_A)
-        cfg["Reward_Config"]["rear_legs_air"] = -0.20
+        cfg["Training_Config"]["algorithm"]["entropy_coef"] = 0.003
+        cfg["Training_Config"]["actor"]["distribution_cfg"]["std_range"] = [0.05, 0.75]
+        return cfg
+
+    # ============================================================
+    # CONFIG E — LOWER ENTROPY + MODERATE STD CAP
+    #
+    # Changes:
+    #   entropy_coef: 0.005 -> 0.002
+    #   std_max:      1.0   -> 0.75
+    # ============================================================
+    elif config_name == "config_E":
+        cfg = deepcopy(config_A)
+        cfg["Training_Config"]["algorithm"]["entropy_coef"] = 0.002
+        cfg["Training_Config"]["actor"]["distribution_cfg"]["std_range"] = [0.05, 0.75]
+        return cfg
+
+    # ============================================================
+    # CONFIG F — FIXED EXPLORATION CONTROL
+    #
+    # Purpose:
+    #   Test whether a stable fixed exploration level produces a better
+    #   deterministic mean policy than the learnable-std variants.
+    #
+    # Changes:
+    #   entropy_coef = 0.0
+    #   init_std = 0.30
+    #   learn_std = False
+    #
+    # std_range remains present but has no practical role while std is fixed.
+    # ============================================================
+    elif config_name == "config_F":
+        cfg = deepcopy(config_A)
+
+        cfg["Training_Config"]["algorithm"]["entropy_coef"] = 0.0
+
+        distribution_cfg = cfg["Training_Config"]["actor"]["distribution_cfg"]
+        distribution_cfg["init_std"] = 0.30
+        distribution_cfg["learn_std"] = False
+        distribution_cfg["std_range"] = [0.05, 1.0]
+
         return cfg
 
     else:
@@ -191,6 +222,8 @@ def build_configs(config_name: str) -> dict:
             "config_B",
             "config_C",
             "config_D",
+            "config_E",
+            "config_F",
         ]
         raise ValueError(
             f"Unknown config_name: {config_name}. "
@@ -201,19 +234,28 @@ def build_configs(config_name: str) -> dict:
 def get_hypothesis(config_name: str) -> str:
     hypotheses = {
         "config_A": (
-            "Walking baseline with no rear-pair airborne penalty."
+            "Reference exploration setup with entropy 0.005 and learnable std "
+            "up to 1.0."
         ),
         "config_B": (
-            "A light rear-pair airborne penalty reduces rear-leg hopping "
-            "without harming the otherwise useful gait."
+            "Reducing entropy to 0.003 prevents std from rising excessively "
+            "while preserving enough exploration for gait discovery."
         ),
         "config_C": (
-            "A medium rear-pair airborne penalty produces a cleaner "
-            "alternating rear-leg gait."
+            "Reducing entropy to 0.002 further improves deterministic-policy "
+            "quality without collapsing exploration."
         ),
         "config_D": (
-            "A strong rear-pair airborne penalty is required, but may "
-            "cause rear-foot dragging as a new reward-hacking strategy."
+            "Entropy 0.003 plus std_max 0.75 provides a stable compromise "
+            "between exploration and deterministic gait quality."
+        ),
+        "config_E": (
+            "Entropy 0.002 plus std_max 0.75 provides a more conservative "
+            "learnable exploration regime."
+        ),
+        "config_F": (
+            "A fixed std of 0.30 tests whether learned exploration itself is "
+            "causing the gap between training behavior and deterministic eval."
         ),
     }
 
@@ -229,4 +271,6 @@ def list_configs() -> list[str]:
         "config_B",
         "config_C",
         "config_D",
+        "config_E",
+        "config_F",
     ]

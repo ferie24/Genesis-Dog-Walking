@@ -12,6 +12,7 @@ DEFAULT_SCALES = {
     "x_progress": 1.0,
     "orientation": 0.0,
     "rear_legs_air": 0.0,
+    "heading_error": -0.5,
 }
 
 class Rewards:
@@ -33,7 +34,7 @@ class Rewards:
         self.s_x_progress = float(self.scales["x_progress"])
         self.s_orientation = float(self.scales.get("orientation", 0.0))
         self.s_rear_legs_air = float(self.scales.get("rear_legs_air", 0.0))
-
+        self.s_heading_error = float(self.scales.get("heading_error", 0.0))
 
     def __call__(self, obs, actions, info):
         # Nutze das LOKALE Koordinatensystem des Roboters für Geschwindigkeiten!
@@ -48,7 +49,7 @@ class Rewards:
         x_progress = info["x_progress"]
         projected_gravity = info["projected_gravity"]
         foot_contacts = info["foot_contacts"]
-        commands = info["commands"]  
+        heading_error = info["heading_error"]
 
 
         # Wir vergleichen jetzt das Kommando mit der LOKALEN X-Geschwindigkeit
@@ -91,6 +92,9 @@ class Rewards:
 
         reward_rear_legs_air = both_rear_air.float() * moving.float()
 
+        
+
+        cos_heading_error = 1.0 - torch.cos(heading_error)
 
         reward = (
                 self.s_tracking_lin_vel_x * tracking_lin_vel_x
@@ -102,6 +106,7 @@ class Rewards:
                 + self.s_sideway_movement * sideway_movement
                 + self.s_x_progress * x_progress
                 + self.s_orientation * orientation
+                + self.s_heading_error * cos_heading_error
                 + self.s_rear_legs_air * reward_rear_legs_air
         )
         return reward, tracking_lin_vel_x #* 0.1

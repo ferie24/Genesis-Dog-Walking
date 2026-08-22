@@ -268,7 +268,7 @@ def main() -> None:
         print("Curriculum aktiv:", curriculum_cfg)
     print("Reward configuration:", reward_cfg)
     print("Train_cfg: ", train_cfg)
-
+    
     final_vel = runner.learn(num_learning_iterations=train_cfg.get('num_learning_iterations', 4000), 
                  #curriculum=True, 
                  curriculum_cfg=curriculum_cfg, 

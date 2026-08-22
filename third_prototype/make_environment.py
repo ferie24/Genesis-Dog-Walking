@@ -52,8 +52,8 @@ class Go2WalkingEnv:
         # Robot configuration
         self.num_dof = 12  # 12 actuated joints (3 per leg)
         self.num_actions = 12
-        # 48 = 3 base lin vel + 3 base ang vel + 3 projected gravity + 3 commands + 12 (dof pos) + 12 (dof vel) + 12 (actions)
-        self.num_obs = 48  # Robot state observations
+        # 48 = 3 base lin vel + 3 base ang vel + 3 projected gravity + 3 commands + 12 (dof pos) + 12 (dof vel) + 12 (actions) + 2 Headings sin, cos
+        self.num_obs = 50 #48  # Robot state observations
         
         # Action and observation buffers
         self.actions = torch.zeros((self.num_envs, self.num_actions), device=self.device)
@@ -62,6 +62,13 @@ class Go2WalkingEnv:
         self.target_dof_pos = torch.zeros((self.num_envs, self.num_actions), device=self.device)
         self._gravity_vec = torch.tensor([0.0, 0.0, -1.0], device=self.device).repeat(self.num_envs, 1)
         self._up_vec = torch.tensor([0.0, 0.0, 1.0], device=self.device).repeat(self.num_envs, 1)
+
+        self._forward_vec = torch.zeros(
+            (self.num_envs, 3),
+            device=self.device,
+        )
+
+        self._forward_vec[:, 0] = 1.0
         
         # Episode tracking
         self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
@@ -359,7 +366,7 @@ class Go2WalkingEnv:
         # Update episode length
         self.episode_length_buf += 1
         time_outs = self.episode_length_buf >= self.max_episode_length
-        terminated = self._check_termination()
+        terminated, reasons = self._check_termination()
         self.reset_buf = time_outs | terminated
         done_buf = self.reset_buf.clone()
 
@@ -367,12 +374,26 @@ class Go2WalkingEnv:
         
         # Vor dem Reset eine Kopie ziehen
         time_outs_out = time_outs.clone()
+        heading_error = self._compute_heading_error()
+        
+        heading_diag = {
+            "heading_error_abs_mean":
+                heading_error.abs().mean(),
 
-        if done_buf.any():
-            self.reset(done_buf.nonzero(as_tuple=False).flatten())
+            "heading_error_signed_mean":
+                heading_error.mean(),
 
+            "heading_error_abs_max":
+                heading_error.abs().max(),
+        }
         foot_diag = self._compute_foot_diagnostics()
         foot_diag.update(self._compute_undesired_body_contacts())
+        foot_diag.update(reasons)
+        foot_diag.update(heading_diag)
+        
+        if done_buf.any():
+            self.reset(done_buf.nonzero(as_tuple=False).flatten())
+        
         extras = {
             "time_outs": time_outs_out.float(),
             "lin_vel_x_rew": lin_vel_x_rew,
@@ -455,6 +476,8 @@ class Go2WalkingEnv:
         base_lin_vel_base = transform_by_quat(self.base_lin_vel, base_quat_inv)
         base_ang_vel_base = transform_by_quat(self.base_ang_vel, base_quat_inv)
 
+        # Heading Error: sin and cos of heading error
+        heading_error = self._compute_heading_error()
         # Assemble observations in-place to avoid temporary cat allocations each step.
         self.obs_buf[:, 0:3] = base_lin_vel_base * 2.0
         self.obs_buf[:, 3:6] = base_ang_vel_base * 0.25
@@ -463,6 +486,8 @@ class Go2WalkingEnv:
         self.obs_buf[:, 12:24] = self.dof_pos - self.default_dof_pos
         self.obs_buf[:, 24:36] = self.dof_vel #* 0.05
         self.obs_buf[:, 36:48] = self.actions
+        self.obs_buf[:, 48] = torch.sin(heading_error)
+        self.obs_buf[:, 49] = torch.cos(heading_error)
     
     def _compute_rewards(self):
         obs = self.obs_buf
@@ -470,6 +495,7 @@ class Go2WalkingEnv:
         base_quat_inv = inv_quat(self.base_quat)
         base_lin_vel_base = transform_by_quat(self.base_lin_vel, base_quat_inv)
         orientation_error = 1.0 - transform_by_quat(self._up_vec, self.base_quat)[:, 2]
+        heading_error = self._compute_heading_error()
         info = { # TODO: clean up info dict
             "base_lin_vel_base": base_lin_vel_base,
             "base_vel": self.base_lin_vel,
@@ -491,6 +517,7 @@ class Go2WalkingEnv:
             "projected_gravity": transform_by_quat(self._gravity_vec, base_quat_inv),
             "foot_contacts": self.foot_contacts,
             "commands": self.commands,
+            "heading_error": heading_error,
         }
         reward_out = self.reward_fn(obs, actions, info)
         lin_vel_x_rew = None
@@ -514,20 +541,44 @@ class Go2WalkingEnv:
     # make_environment.py – _check_termination():
     def _check_termination(self):
         base_quat_inv = inv_quat(self.base_quat)
-        proj_gravity = transform_by_quat(self._gravity_vec, base_quat_inv)
-
-        roll_termination  = torch.abs(proj_gravity[:, 1]) > 0.342  # 20°
-        pitch_termination = torch.abs(proj_gravity[:, 0]) > 0.522  # 30°
-        fall_termination  = self.base_pos[:, 2] < self.min_base_height
-
-        #base_lin_vel_base = transform_by_quat(self.base_lin_vel, base_quat_inv)
-        #stall_termination = (self.episode_length_buf > 200) & (torch.abs(base_lin_vel_base[:, 0]) < 0.05)
-
-
-        termination = roll_termination | pitch_termination | fall_termination #| stall_termination
-
+        proj_gravity = transform_by_quat(
+            self._gravity_vec,
+            base_quat_inv
+        )
+        roll_termination = (
+            torch.abs(proj_gravity[:, 1]) > 0.342
+        )
+        pitch_termination = (
+            torch.abs(proj_gravity[:, 0]) > 0.522
+        )
+        fall_termination = (
+            self.base_pos[:, 2] < self.min_base_height
+        )
+        # Grace period
         grace_mask = self.episode_length_buf < 40
-        return termination & ~grace_mask
+
+        # Nur Terminations zählen, die tatsächlich wirksam sind
+        effective_roll = roll_termination & ~grace_mask
+        effective_pitch = pitch_termination & ~grace_mask
+        effective_fall = fall_termination & ~grace_mask
+
+        termination = (
+            effective_roll
+            | effective_pitch
+            | effective_fall
+        )
+        reasons = {
+            "roll_termination_fraction":
+                effective_roll.float().mean(),
+
+            "pitch_termination_fraction":
+                effective_pitch.float().mean(),
+
+            "fall_termination_fraction":
+                effective_fall.float().mean(),
+        }
+
+        return termination, reasons
 
 
 
@@ -598,25 +649,64 @@ class Go2WalkingEnv:
         }
     
     def _compute_undesired_body_contacts(self):
-        """Compute undesired body contacts (excluding feet)"""
-        # RigidEntity does not expose a get_links() method.  The contact-force
-        # tensor is already indexed by local link index, so mask out the feet
-        # using the indices cached during robot setup.
+        """Compute logging diagnostics for contacts of non-foot links."""
+
         contact_forces = self.robot.get_links_net_contact_force(envs_idx=None)
         contact_mask = contact_forces.norm(dim=-1) > 1.0
 
         foot_mask = torch.zeros(
-            contact_mask.shape[1], device=contact_mask.device, dtype=torch.bool
+            contact_mask.shape[1],
+            device=contact_mask.device,
+            dtype=torch.bool,
         )
+
         valid_foot_indices = [
-            idx for idx in self.foot_link_indices if 0 <= idx < contact_mask.shape[1]
+            idx
+            for idx in self.foot_link_indices
+            if 0 <= idx < contact_mask.shape[1]
         ]
+
         if valid_foot_indices:
             foot_mask[valid_foot_indices] = True
 
+        # [num_envs, num_links]
+        undesired_mask = (
+            contact_mask
+            & ~foot_mask.unsqueeze(0)
+        )
+
         return {
-            "undesired_contacts": (
-                contact_mask & ~foot_mask.unsqueeze(0)
-            ).sum(dim=1).float().mean(),
+            # Durchschnittliche Anzahl kontaktierender Nicht-Fuß-Links
+            "undesired_contact_count":
+                undesired_mask.sum(dim=1).float().mean(),
+
+            # Anteil der Environments mit mindestens einem
+            # Nicht-Fuß-Kontakt
+            "undesired_contact_fraction":
+                undesired_mask.any(dim=1).float().mean(),
         }
-    
+    def _compute_heading_error(self):
+        # Lokale +X-Achse des Roboters in Weltkoordinaten transformieren
+        forward_world = transform_by_quat(
+            self._forward_vec,
+            self.base_quat,
+        )
+
+        # Aktuelle Yaw-/Heading-Richtung des Roboters
+        current_heading = torch.atan2(
+            forward_world[:, 1],
+            forward_world[:, 0],
+        )
+
+        # Gewünschte Richtung: Welt +X = 0 rad
+        desired_heading = torch.zeros_like(current_heading)
+
+        # Signed angular error, sauber auf [-pi, pi] gewrappt
+        heading_diff = current_heading - desired_heading
+
+        heading_error = torch.atan2(
+            torch.sin(heading_diff),
+            torch.cos(heading_diff),
+        )
+
+        return heading_error
