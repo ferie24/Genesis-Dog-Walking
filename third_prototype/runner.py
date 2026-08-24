@@ -29,36 +29,6 @@ except Exception as exc:
 from make_environment import Go2WalkingEnv
 from reward import Rewards
 from config import build_configs
-"""
-REWARD_CFG = {
-    "tracking_lin_vel_x": 1.0,
-    "tracking_ang_vel": 1.0, #1.0,
-    "lin_vel_z": -1.0,
-    "lin_vel_y": -5.0,
-    "action_rate": -0.005,
-    "similar_to_default": -0.1,# -0.1,   # stärker bestrafen, wenn er in Default-Pose "einfriert"
-    "sideway_movement":  -1.0,#-1.0,
-    "tracking_sigma": 0.3,        # engerer Tracking-Bonus, belohnt genaueres Geschwindigkeitsmatching statt "gut genug" bei 0
-    "x_progress": 0.0,             # stärkerer Anreiz für tatsächlichen Vorwärtsfortschritt
-}
-
-
-SEED = 1
-USE_TERRAIN = True
-EPISODE_LENGTH_S = 30.0
-NUM_ENVS = 4096
-DEFAULT_NUM_LEARNING_ITERATIONS = 4000
-
-CURRICULUM_CFG = {
-    "enabled": True,
-    "start_lin_vel_x": 0.2,
-    "max_lin_vel_x": 1.0,
-    "delta_lin_vel_x": 0.05,
-    "curriculum_threshold": 0.85,
-    "increase_anyway_threshold": 5000,
-    "threshold_size": 30
-}"""
-
 
 def build_reward_fn(
         reward_cfg: dict = None
@@ -88,56 +58,6 @@ def build_env(device: str,
     )
     env.set_commands(lin_vel_x=lin_vel_x, lin_vel_y=0.0, ang_vel_yaw=0.0)
     return env
-
-"""
-def build_train_cfg(run_name: str) -> dict:
-    return {
-        "run_name": run_name,
-        "logger": "tensorboard",
-        "num_steps_per_env": 96,
-        "save_interval": 200,
-        "obs_groups": {
-            "actor": ["policy"],
-            "critic": ["policy"],
-        },
-       "algorithm": {
-            "class_name": "PPO",
-            "clip_param": 0.2,
-            "num_learning_epochs": 5,
-            "num_mini_batches": 4,
-            "gamma": 0.99,
-            "lam": 0.95,
-            "value_loss_coef": 1.0,
-            "entropy_coef": 0.005,
-            "learning_rate": 5e-4,
-            "schedule": "adaptive",
-            "desired_kl": 0.02,
-            "max_grad_norm": 1.0,
-            "use_clipped_value_loss": True,
-            "normalize_advantage_per_mini_batch": False,
-            "optimizer": "adamw",
-        },
-        "actor": {
-            "class_name": "MLPModel",
-            "hidden_dims": [512, 256, 128],
-            "activation": "elu",
-            "obs_normalization": True,
-            "distribution_cfg": {
-                "class_name": "GaussianDistribution",
-                "init_std": 0.5,
-                "std_type": "scalar",
-                "learn_std": True,
-                "std_range": [0.05, 1.0],
-            },
-        },
-        "critic": {
-            "class_name": "MLPModel",
-            "hidden_dims": [512, 256, 128],
-            "activation": "elu",
-            "obs_normalization": True,
-        },
-    }
-"""
 
 def _iter_from_name(path_obj: Path) -> int:
     match = re.search(r"model_(\d+)\.pt$", path_obj.name)
@@ -173,31 +93,46 @@ def load_latest_checkpoint(runner: OnPolicyRunner, log_dir: Path, device: str) -
 
 
 def make_eval_video(
-    runner: OnPolicyRunner,
-    env: Go2WalkingEnv,
-    video_path: Path,
-    device: str,
-    eval_steps: int = 800,
-    iteration: int = 0
-) -> None:
+    runner,
+    env,
+    video_path,
+    device,
+    eval_steps=800,
+    iteration=0,
+    stochastic=False,
+):
     policy = runner.get_inference_policy(device=device)
     policy.eval()
 
+    # WICHTIG:
+    # Robot auf dieselbe Initialpose setzen wie beim Training
+    env.reset()
+
+    # Erst NACH reset() die Observation holen
     obs_td = env.get_observations()
+
     cam = env.camera
     cam.start_recording()
 
     with torch.no_grad():
         for _ in range(eval_steps):
-            actions = policy(obs_td, stochastic_output=False)
-            actions = torch.clamp(actions, -1.0, 1.0)
+
+            actions = policy(
+                obs_td,
+                stochastic_output=stochastic,
+            )
+
             obs_td, rewards, dones, extras = env.step(actions)
+
             cam.render()
+
             if bool(dones[0].item()):
                 break
 
-    cam.stop_recording(save_to_filename=str(video_path), fps=50)
-    print(f"Video gespeichert unter: {video_path}")
+    cam.stop_recording(
+        save_to_filename=str(video_path),
+        fps=50,
+    )
 
     if wandb.run is not None:  # Prüfen, ob WandB aktiv ist
         wandb.log({
