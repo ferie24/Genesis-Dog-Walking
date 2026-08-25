@@ -301,6 +301,26 @@ class Go2WalkingEnv:
         self.prev_base_pos_x = self.base_pos[:, 0].clone()
         self.x_progress = torch.zeros(self.num_envs, device=self.device)
 
+        # Contact force buffers
+        self.foot_contacts = torch.zeros(
+            (self.num_envs, 4),
+            device=self.device,
+        )
+
+        # At least one contact of a non-foot link (e.g., body, leg links)
+        self.undesired_body_contact = torch.zeros(
+            self.num_envs,
+            device=self.device,
+        )
+
+        # number of undesired body contacts (non-foot links) per environment
+        self.undesired_body_contact_count = torch.zeros(
+            self.num_envs,
+            device=self.device,
+        )
+
+        self._foot_link_mask = None
+
     def reset(self, env_ids=None):
         if env_ids is None:
             env_ids = torch.arange(self.num_envs, device=self.device)
@@ -462,19 +482,70 @@ class Go2WalkingEnv:
         self.dof_pos.copy_(dof_pos_t)
         self.dof_vel.copy_(dof_vel_t)
 
-        if contact_forces is None or (
-            hasattr(contact_forces, "numel") and contact_forces.numel() == 0
+        if (
+            contact_forces is None
+            or (
+                hasattr(contact_forces, "numel")
+                and contact_forces.numel() == 0
+            )
         ):
             self.foot_contacts.zero_()
+            self.undesired_body_contact.zero_()
+            self.undesired_body_contact_count.zero_()
+
         else:
             cf = to_torch(contact_forces)
+
+            # [num_envs, num_links]
+            contact_mask = cf.norm(dim=-1) > 1.0
+
+            # --------------------------------------------------
+            # Foot mask nur EINMAL erzeugen
+            # --------------------------------------------------
+            if (
+                self._foot_link_mask is None
+                or self._foot_link_mask.shape[0] != cf.shape[1]
+            ):
+                self._foot_link_mask = torch.zeros(
+                    cf.shape[1],
+                    dtype=torch.bool,
+                    device=self.device,
+                )
+
+                for link_idx in self.foot_link_indices:
+                    if 0 <= link_idx < cf.shape[1]:
+                        self._foot_link_mask[link_idx] = True
+
+            # --------------------------------------------------
+            # Foot contacts
+            # --------------------------------------------------
             for j, link_idx in enumerate(self.foot_link_indices):
-                if link_idx >= cf.shape[1]:
-                    self.foot_contacts[:, j].zero_()
-                else:
+                if link_idx < cf.shape[1]:
                     self.foot_contacts[:, j].copy_(
-                        (cf[:, link_idx].norm(dim=-1) > 1.0).float()
+                        contact_mask[:, link_idx].float()
                     )
+                else:
+                    self.foot_contacts[:, j].zero_()
+
+            # --------------------------------------------------
+            # Alle Kontakte außer Füße
+            # --------------------------------------------------
+            undesired_mask = (
+                contact_mask
+                & ~self._foot_link_mask.unsqueeze(0)
+            )
+
+            # Binär pro Environment:
+            # hat irgendein Körperteil außer den Füßen Kontakt?
+            self.undesired_body_contact.copy_(
+                undesired_mask.any(dim=1).float()
+            )
+
+            # Optional fürs Logging:
+            # wie viele Nicht-Fuß-Links haben gleichzeitig Kontakt?
+            self.undesired_body_contact_count.copy_(
+                undesired_mask.sum(dim=1).float()
+            )
 
     def _compute_observations(self):
         """Compute observations from current state"""
@@ -526,6 +597,7 @@ class Go2WalkingEnv:
             "x_progress": self.x_progress,
             "projected_gravity": transform_by_quat(self._gravity_vec, base_quat_inv),
             "heading_error": heading_error,
+            "undesired_body_contact": self.undesired_body_contact
         }
         reward_out = self.reward_fn(obs, actions, info)
         lin_vel_x_rew = None
@@ -631,28 +703,12 @@ class Go2WalkingEnv:
         }
 
     def _compute_undesired_body_contacts(self):
-        """Compute logging diagnostics for contacts of non-foot links."""
-        contact_forces = self.robot.get_links_net_contact_force(envs_idx=None)
-        contact_mask = contact_forces.norm(dim=-1) > 1.0
-        foot_mask = torch.zeros(
-            contact_mask.shape[1],
-            device=contact_mask.device,
-            dtype=torch.bool,
-        )
-        valid_foot_indices = [
-            idx for idx in self.foot_link_indices if 0 <= idx < contact_mask.shape[1]
-        ]
-        if valid_foot_indices:
-            foot_mask[valid_foot_indices] = True
-
-        # [num_envs, num_links]
-        undesired_mask = contact_mask & ~foot_mask.unsqueeze(0)
         return {
-            # Durchschnittliche Anzahl kontaktierender Nicht-Fuß-Links
-            "undesired_contact_count": undesired_mask.sum(dim=1).float().mean(),
-            # Anteil der Environments mit mindestens einem
-            # Nicht-Fuß-Kontakt
-            "undesired_contact_fraction": undesired_mask.any(dim=1).float().mean(),
+            "undesired_contact_count":
+                self.undesired_body_contact_count.mean(),
+
+            "undesired_contact_fraction":
+                self.undesired_body_contact.mean(),
         }
 
     def _compute_heading_error(self):

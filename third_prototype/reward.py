@@ -12,6 +12,7 @@ DEFAULT_SCALES = {
     "orientation": 0.0,
     "rear_legs_air": 0.0,
     "heading_error": -0.5,
+    "undesired_body_contact": -0.25,
 }
 
 class Rewards:
@@ -34,6 +35,8 @@ class Rewards:
         self.s_orientation = float(self.scales.get("orientation", 0.0))
         self.s_rear_legs_air = float(self.scales.get("rear_legs_air", 0.0))
         self.s_heading_error = float(self.scales.get("heading_error", 0.0))
+        self.s_undesired_body_contact = float(self.scales.get("undesired_body_contact", 0.0))
+
 
     def __call__(self, obs, actions, info):
         # Nutze das LOKALE Koordinatensystem des Roboters für Geschwindigkeiten!
@@ -49,6 +52,7 @@ class Rewards:
         projected_gravity = info["projected_gravity"]
         foot_contacts = info["foot_contacts"]
         heading_error = info["heading_error"]
+        undesired_body_contact = info["undesired_body_contact"]
 
 
         # Wir vergleichen jetzt das Kommando mit der LOKALEN X-Geschwindigkeit
@@ -110,5 +114,6 @@ class Rewards:
                 + self.s_orientation * orientation
                 + self.s_heading_error * cos_heading_error
                 + self.s_rear_legs_air * reward_rear_legs_air
+                + self.s_undesired_body_contact * undesired_body_contact
         )
         return reward, tracking_lin_vel_x #* 0.1
