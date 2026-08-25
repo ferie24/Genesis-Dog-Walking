@@ -172,13 +172,9 @@ def main() -> None:
                     }),
                     command_range_allowed=env_cfg.get("command_range_allowed", False)
                     )
-    obs = env.get_observations()
-    #print("Observation keys:", list(obs.keys()))
-    #print("Policy obs shape:", obs["policy"].shape)
 
     logs_root = project_root / "logs"
     run_name, log_dir = reserve_run_version(logs_root=logs_root, base_run_name="go2_genesis_rsl_rl"+f"_{parser.parse_args().config_name}")
-    
     
     wandb.init(
             project="Genesis_Dog_Walking",  
@@ -192,9 +188,7 @@ def main() -> None:
             sync_tensorboard=True,           # Der magische Trick! Zieht sich alle TB-Daten.
             dir=project_root / "logs"
         )
-    #train_cfg["algorithm"]["learning_rate"] = args.lr
-    #REWARD_CFG["action_rate"] = args.action_rate_penalty
-    #video_dir = project_root / "video" / run_name
+    
     runner = OnPolicyRunner(
         env=env,
         train_cfg=train_cfg,

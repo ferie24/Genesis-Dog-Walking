@@ -57,7 +57,7 @@ class Go2WalkingEnv:
         self.num_dof = 12  # 12 actuated joints (3 per leg)
         self.num_actions = 12
         # 48 = 3 base lin vel + 3 base ang vel + 3 projected gravity + 3 commands + 12 (dof pos) + 12 (dof vel) + 12 (actions) + 2 Headings sin, cos
-        self.num_obs = 50  # 48  # Robot state observations
+        self.num_obs = 50  # Robot state observations
 
         # Action and observation buffers
         self.actions = torch.zeros(
@@ -158,7 +158,7 @@ class Go2WalkingEnv:
 
     def get_camera(self):
         self._update_follow_camera()
-        rgb, depth, segmentation, normal = self.camera.render(
+        _rgb, _depth, _segmentation, _normal = self.camera.render(
             depth=True, segmentation=True, normal=True
         )
         return self.camera
@@ -200,12 +200,6 @@ class Go2WalkingEnv:
             show_viewer=self.show_viewer,
         )
 
-        # Get rigid solver reference
-        # for solver in self.scene.sim.solvers:
-        #    if isinstance(solver, RigidSolver):
-        #        self.rigid_solver = solver
-        #        break
-
     def _add_terrain(self):
         """Add terrain (flat plane or complex terrain)"""
         if self.use_terrain:
@@ -213,21 +207,14 @@ class Go2WalkingEnv:
             self.terrain = self.scene.add_entity(
                 gs.morphs.Terrain(
                     n_subterrains=(3, 1),
-                    # 1. Streckt das Gelände horizontal (Standard ist oft 0.25 oder 0.1).
-                    # Wenn wir es von 0.1 auf 0.2 oder 0.25 erhöhen, werden Steigungen flacher.
                     horizontal_scale=0.25,
-                    # 2. Staucht das Gelände vertikal. Wir halbieren die vertikale
-                    # Skalierung (von 0.005 auf 0.0025 oder 0.002), wodurch alle
-                    # Fraktale und Stufen nur noch halb so hoch ausfallen.
                     vertical_scale=0.005,
                     subterrain_size=(25, 15),
-                    # fractal_terrain ist gut, aber du könntest hier auch "wave_terrain"
-                    # beimischen für sanfte Sinus-Hügel anstatt rauer Fraktale.
                     subterrain_types="fractal_terrain",
                     randomize=False,
                 ),
             )
-            # Da das Terrain nun flacher ist, können wir den Roboter etwas niedriger spawnen
+            # Need to spawn robot higher due to differnt terrain heights
             self.base_init_pos = torch.tensor([5.0, 5.0, 1.0], device=self.device)
         else:
             # Simple flat plane
@@ -340,6 +327,7 @@ class Go2WalkingEnv:
         self.last_actions[env_ids].zero_()
         self.prev_base_pos_x[env_ids] = pos_batch[:, 0]
         self.x_progress[env_ids].zero_()
+
         if self.command_range_allowed:
             self._sample_commands(env_ids)
         self._update_state()
@@ -372,9 +360,8 @@ class Go2WalkingEnv:
             info: Additional info dictionary
         """
         # Clip actions
-        # second without clamp, third with 12, first with normal -1
         torch.clamp(actions, -1.0, 1.0, out=self.actions)
-        # self.actions = actions
+
         # Apply actions to robot
         self.target_dof_pos.copy_(self.default_dof_pos)
         self.target_dof_pos.add_(self.actions, alpha=0.25)
@@ -421,14 +408,8 @@ class Go2WalkingEnv:
             "time_outs": time_outs_out.float(),
             "lin_vel_x_rew": lin_vel_x_rew,
             "foot_diag": foot_diag,
-            # "undesired_contacts": undesired_contacts,
         }
         return self.get_observations(), rewards, done_buf, extras
-
-        ##info = {
-        #    "time_outs" : (self.episode_length_buf >= self.max_episode_length).sum().item(),}
-
-        # return self.obs_buf, rewards, done_buf, time_outs
 
     def _update_state(self):
         """Refresh state buffers without device/alloc thrash."""
@@ -525,7 +506,7 @@ class Go2WalkingEnv:
         base_lin_vel_base = transform_by_quat(self.base_lin_vel, base_quat_inv)
         orientation_error = 1.0 - transform_by_quat(self._up_vec, self.base_quat)[:, 2]
         heading_error = self._compute_heading_error()
-        info = {  # TODO: clean up info dict
+        info = {
             "base_lin_vel_base": base_lin_vel_base,
             "base_vel": self.base_lin_vel,
             "base_ang_vel": self.base_ang_vel,
@@ -544,8 +525,6 @@ class Go2WalkingEnv:
             "max_episode_length": self.max_episode_length,
             "x_progress": self.x_progress,
             "projected_gravity": transform_by_quat(self._gravity_vec, base_quat_inv),
-            "foot_contacts": self.foot_contacts,
-            "commands": self.commands,
             "heading_error": heading_error,
         }
         reward_out = self.reward_fn(obs, actions, info)
@@ -653,26 +632,21 @@ class Go2WalkingEnv:
 
     def _compute_undesired_body_contacts(self):
         """Compute logging diagnostics for contacts of non-foot links."""
-
         contact_forces = self.robot.get_links_net_contact_force(envs_idx=None)
         contact_mask = contact_forces.norm(dim=-1) > 1.0
-
         foot_mask = torch.zeros(
             contact_mask.shape[1],
             device=contact_mask.device,
             dtype=torch.bool,
         )
-
         valid_foot_indices = [
             idx for idx in self.foot_link_indices if 0 <= idx < contact_mask.shape[1]
         ]
-
         if valid_foot_indices:
             foot_mask[valid_foot_indices] = True
 
         # [num_envs, num_links]
         undesired_mask = contact_mask & ~foot_mask.unsqueeze(0)
-
         return {
             # Durchschnittliche Anzahl kontaktierender Nicht-Fuß-Links
             "undesired_contact_count": undesired_mask.sum(dim=1).float().mean(),
