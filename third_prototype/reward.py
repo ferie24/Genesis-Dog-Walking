@@ -81,19 +81,22 @@ class Rewards:
             + projected_gravity[:, 1] ** 2
         )
 
-        contacts = foot_contacts > 0.5
+        command_x = commands[:, 0].clamp(min=0.1)
 
+        progress_ratio = torch.clamp(
+            x_progress / command_x,
+            min=0.0,
+            max=1.0,
+        )
+
+        contacts = foot_contacts > 0.5
         rl = contacts[:, 2]
         rr = contacts[:, 3]
-
         both_rear_air = (~rl) & (~rr)
-
         moving = commands[:, 0].abs() > 0.1
-
         reward_rear_legs_air = both_rear_air.float() * moving.float()
 
         
-
         cos_heading_error = 1.0 - torch.cos(heading_error)
 
         reward = (
@@ -104,7 +107,7 @@ class Rewards:
                 + self.s_action_rate * action_rate
                 + self.s_similar_to_default * similar_to_default
                 + self.s_sideway_movement * sideway_movement
-                + self.s_x_progress * x_progress
+                + self.s_x_progress * progress_ratio
                 + self.s_orientation * orientation
                 + self.s_heading_error * cos_heading_error
                 + self.s_rear_legs_air * reward_rear_legs_air

@@ -1,6 +1,6 @@
 from __future__ import annotations
+
 import argparse
-import wandb
 import logging
 import re
 import statistics
@@ -9,16 +9,17 @@ from pathlib import Path
 
 import genesis as gs
 import torch
+import wandb
 
 project_root = Path(__file__).resolve().parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 import rsl_rl
+
 print(f"[DEBUG] rsl_rl geladen von: {rsl_rl.__file__}")
 
 from rsl_rl.runners import OnPolicyRunner
-
 
 backend = gs.gpu if torch.cuda.is_available() else gs.cpu
 try:
@@ -26,9 +27,10 @@ try:
 except Exception as exc:
     print(f"Genesis war bereits initialisiert: {exc}")
 
+from config import build_configs
 from make_environment import Go2WalkingEnv
 from reward import Rewards
-from config import build_configs
+
 
 def build_reward_fn(
         reward_cfg: dict = None
@@ -43,7 +45,9 @@ def build_env(device: str,
               lin_vel_x: float = None, 
               use_terrain: bool = None, 
               episode_length_s: float = None, 
-              reward_cfg: dict = None
+              reward_cfg: dict = None,
+              command_range: dict = None, 
+              command_range_allowed: bool = False
               ) -> Go2WalkingEnv:
     reward_fn = build_reward_fn(reward_cfg)
     env = Go2WalkingEnv(
@@ -55,8 +59,9 @@ def build_env(device: str,
         min_up_dot=0.1,
         reward_fn=reward_fn,
         min_base_height=0.22,
+        command_range_allowed=command_range_allowed
     )
-    env.set_commands(lin_vel_x=lin_vel_x, lin_vel_y=0.0, ang_vel_yaw=0.0)
+    env.command_range = command_range
     return env
 
 def _iter_from_name(path_obj: Path) -> int:
@@ -160,7 +165,13 @@ def main() -> None:
                     lin_vel_x=curriculum_cfg["start_lin_vel_x"], 
                     use_terrain=env_cfg.get("use_terrain", True),
                     episode_length_s=env_cfg.get("episode_length_s", 30.0), 
-                    reward_cfg=reward_cfg
+                    reward_cfg=reward_cfg, 
+                    command_range=env_cfg.get("command_range", {
+                        "lin_vel_x": (0.0, 1.0),
+                        "lin_vel_y": (0.0, 0.0),
+                        "ang_vel_yaw": (0.0, 0.0)
+                    }),
+                    command_range_allowed=env_cfg.get("command_range_allowed", False)
                     )
     obs = env.get_observations()
     #print("Observation keys:", list(obs.keys()))
@@ -217,11 +228,19 @@ def main() -> None:
                          lin_vel_x=final_vel,
                          use_terrain=env_cfg.get("use_terrain", True),
                          episode_length_s=env_cfg.get("episode_length_s", 30.0), 
-                         reward_cfg=reward_cfg)
+                         reward_cfg=reward_cfg,
+                         command_range_allowed=False)
     video_dir = project_root / "video" / run_name
     video_dir.mkdir(parents=True, exist_ok=True)
     video_path = video_dir / f"go2_eval_{latest_checkpoint.stem}.mp4"
-    make_eval_video(runner, eval_env, video_path, device=device)
+    tmp = env_cfg.get("command_range", {}).get("lin_vel_x", [0.0, 1.0])
+    current = tmp[0]
+    while current <= tmp[1]: 
+        eval_env.set_commands(lin_vel_x=current, lin_vel_y=0.0, ang_vel_yaw=0.0)
+        print(f"Evaluating with command lin_vel_x: {current}")
+        make_eval_video(runner, eval_env, video_path.with_name(f"go2_eval_{latest_checkpoint.stem}_lin_vel_x_{current:.2f}.mp4"), device=device)
+        current += 0.1
+    
 
 
 if __name__ == "__main__":

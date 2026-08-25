@@ -19,6 +19,7 @@ class Go2WalkingEnv:
         min_base_height=0.15,
         min_up_dot=0.2,
         reward_fn=None,
+        command_range_allowed=False,
     ):
         """
         Args:
@@ -80,8 +81,14 @@ class Go2WalkingEnv:
         
         # Command targets (linear and angular velocities)
         self.commands = torch.zeros((self.num_envs, 3), device=self.device)
-        self.commands[:, 0] = 1.0  # Forward velocity target (m/s)
-        
+        self.command_range_allowed = command_range_allowed
+        self.command_range = {
+            "lin_vel_x": (0.2, 0.8),  # Forward/backward velocity range (m/s)
+            "lin_vel_y": (0.0, 0.0),  # Lateral velocity range (m/s)
+            "ang_vel_yaw": (0.0, 0.0),  # Yaw angular velocity range (rad/s)
+        }
+
+
         # Default joint positions (standing pose)
         self.default_dof_pos = torch.tensor([
             0.0, 0.8, -1.5,  # FL: hip, thigh, calf
@@ -312,7 +319,8 @@ class Go2WalkingEnv:
         self.last_actions[env_ids].zero_()
         self.prev_base_pos_x[env_ids] = pos_batch[:, 0]
         self.x_progress[env_ids].zero_()
-        
+        if self.command_range_allowed: 
+            self._sample_commands(env_ids)
         self._update_state()
         self._update_follow_camera()
         self._compute_observations()
@@ -710,3 +718,16 @@ class Go2WalkingEnv:
         )
 
         return heading_error
+
+    def _sample_commands(self, env_ids):
+        """Sample random commands within the specified ranges."""
+        self.commands[env_ids, 0] = torch.empty(len(env_ids), device=self.device).uniform_(
+            *self.command_range["lin_vel_x"]
+        )
+        self.commands[env_ids, 1] = torch.empty(len(env_ids), device=self.device).uniform_(
+            *self.command_range["lin_vel_y"]
+        )
+        self.commands[env_ids, 2] = torch.empty(len(env_ids), device=self.device).uniform_(
+            *self.command_range["ang_vel_yaw"]
+        )
+        
