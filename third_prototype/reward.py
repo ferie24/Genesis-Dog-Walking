@@ -1,6 +1,5 @@
 import torch
 
-
 DEFAULT_SCALES = {
     "tracking_lin_vel_x": 1.0,
     "tracking_ang_vel": 1.0,
