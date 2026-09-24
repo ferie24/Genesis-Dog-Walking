@@ -223,6 +223,7 @@ def main() -> None:
     )
     print("Runner ist bereit.")
     print(f"Run name: {run_name}")
+    print(f"Seed: {env_cfg.get('seed', 1)}")
     print(f"Logs: {log_dir}")
     print(f"Start command lin_vel_x: {curriculum_cfg['start_lin_vel_x']}")
     # print(f"Num envs: {env_cfg.get("num_envs", 4096)}")

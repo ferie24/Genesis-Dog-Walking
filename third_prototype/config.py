@@ -11,11 +11,16 @@ def build_configs(config_name: str) -> dict:
 
     Baseline:
         - orientation = -0.25
-        - heading_error = 0.0
-        - rear_legs_air = 0.0
-        - fixed command = 0.5 m/s
+        - heading_error = -1.0
+        - rear_legs_air = -1.0
+        - undesired_body_contact = -0.1
+        - forward command range = 0.2–0.8 m/s
         - terrain enabled
         - fixed PPO learning rate = 3e-4
+        - entropy_coef = 0.002, learnable std in [0.05, 0.75]
+
+    Existing variant overrides are retained; C and E match the baseline,
+    and B and D are equivalent.
 
     Suggested order:
         config_A -> config_B -> config_C -> config_D -> config_E -> config_F
@@ -45,9 +50,9 @@ def build_configs(config_name: str) -> dict:
     # CONFIG A — CURRENT EXPLORATION BASELINE
     #
     # Reference:
-    #   entropy_coef = 0.005
+    #   entropy_coef = 0.002
     #   learn_std = True
-    #   std_range = [0.05, 1.0]
+    #   std_range = [0.05, 0.75]
     # ============================================================
 
     config_A = {
@@ -61,7 +66,6 @@ def build_configs(config_name: str) -> dict:
                 "critic": ["policy"],
             },
             "num_learning_iterations": 4000,
-
             "algorithm": {
                 "class_name": "PPO",
                 "clip_param": 0.2,
@@ -70,7 +74,7 @@ def build_configs(config_name: str) -> dict:
                 "gamma": 0.99,
                 "lam": 0.95,
                 "value_loss_coef": 1.0,
-                "entropy_coef": 0.005,
+                "entropy_coef": 0.002,
                 "learning_rate": 3e-4,
                 "schedule": "fixed",
                 "desired_kl": 0.02,
@@ -81,7 +85,6 @@ def build_configs(config_name: str) -> dict:
                 "rnd_cfg": None,
                 "symmetry_cfg": None,
             },
-
             "actor": {
                 "class_name": "MLPModel",
                 "hidden_dims": [512, 256, 128],
@@ -92,10 +95,9 @@ def build_configs(config_name: str) -> dict:
                     "init_std": 0.5,
                     "std_type": "scalar",
                     "learn_std": True,
-                    "std_range": [0.05, 1.0],
+                    "std_range": [0.05, 0.75],
                 },
             },
-
             "critic": {
                 "class_name": "MLPModel",
                 "hidden_dims": [512, 256, 128],
@@ -103,7 +105,6 @@ def build_configs(config_name: str) -> dict:
                 "obs_normalization": True,
             },
         },
-
         "Reward_Config": {
             "tracking_lin_vel_x": 2.0,
             "tracking_ang_vel": 1.0,
@@ -114,13 +115,12 @@ def build_configs(config_name: str) -> dict:
             "sideway_movement": 0.0,
             "tracking_sigma": 0.1,
             "x_progress": 0.5,
-
             # Keep these fixed during the exploration sweep.
             "orientation": -0.25,
-            "rear_legs_air": 0.0,
-            "heading_error": 0.0,
+            "rear_legs_air": -1.0,
+            "heading_error": -1.0,
+            "undesired_body_contact": -0.1,
         },
-
         "Curriculum_Config": {
             "enabled": False,
             "start_lin_vel_x": 0.5,
@@ -130,92 +130,58 @@ def build_configs(config_name: str) -> dict:
             "increase_anyway_threshold": 5000,
             "threshold_size": 30,
         },
-
         "Environment_Config": {
-            "seed": 1,
+            "seed": 7,
             "use_terrain": True,
             "episode_length_s": 30.0,
             "num_envs": 4096,
+            "command_range": {
+                "lin_vel_x": [0.2, 0.8],
+                "lin_vel_y": [0.0, 0.0],
+                "ang_vel_yaw": [0.0, 0.0],
+            },
+            "command_range_allowed": True,
+            "terminate_on_torso_contact": False,
         },
     }
 
     if config_name == "config_A":
         return deepcopy(config_A)
 
-    # ============================================================
-    # CONFIG B — LOWER ENTROPY PRESSURE
-    #
-    # Only change:
-    #   entropy_coef: 0.005 -> 0.003
-    # ============================================================
+    # Configs B-F differ from config A only by seed.
     elif config_name == "config_B":
         cfg = deepcopy(config_A)
-        cfg["Training_Config"]["algorithm"]["entropy_coef"] = 0.003
+        cfg["Environment_Config"]["seed"] = 2
         return cfg
 
-    # ============================================================
-    # CONFIG C — EVEN LOWER ENTROPY PRESSURE
-    #
-    # Only change:
-    #   entropy_coef: 0.005 -> 0.002
-    # ============================================================
     elif config_name == "config_C":
         cfg = deepcopy(config_A)
-        cfg["Training_Config"]["algorithm"]["entropy_coef"] = 0.002
+        cfg["Environment_Config"]["seed"] = 3
         return cfg
 
-    # ============================================================
-    # CONFIG D — MODERATE ENTROPY + MODERATE STD CAP
-    #
-    # Changes:
-    #   entropy_coef: 0.005 -> 0.003
-    #   std_max:      1.0   -> 0.75
-    # ============================================================
     elif config_name == "config_D":
         cfg = deepcopy(config_A)
-        cfg["Training_Config"]["algorithm"]["entropy_coef"] = 0.003
-        cfg["Training_Config"]["actor"]["distribution_cfg"]["std_range"] = [0.05, 0.75]
+        cfg["Environment_Config"]["seed"] = 4
         return cfg
 
-    # ============================================================
-    # CONFIG E — LOWER ENTROPY + MODERATE STD CAP
-    #
-    # Changes:
-    #   entropy_coef: 0.005 -> 0.002
-    #   std_max:      1.0   -> 0.75
-    # ============================================================
     elif config_name == "config_E":
         cfg = deepcopy(config_A)
-        cfg["Training_Config"]["algorithm"]["entropy_coef"] = 0.002
-        cfg["Training_Config"]["actor"]["distribution_cfg"]["std_range"] = [0.05, 0.75]
+        cfg["Environment_Config"]["seed"] = 5
         return cfg
 
-    # ============================================================
-    # CONFIG F — FIXED EXPLORATION CONTROL
-    #
-    # Purpose:
-    #   Test whether a stable fixed exploration level produces a better
-    #   deterministic mean policy than the learnable-std variants.
-    #
-    # Changes:
-    #   entropy_coef = 0.0
-    #   init_std = 0.30
-    #   learn_std = False
-    #
-    # std_range remains present but has no practical role while std is fixed.
-    # ============================================================
     elif config_name == "config_F":
         cfg = deepcopy(config_A)
-
-        cfg["Training_Config"]["algorithm"]["entropy_coef"] = 0.0
-
-        distribution_cfg = cfg["Training_Config"]["actor"]["distribution_cfg"]
-        distribution_cfg["init_std"] = 0.30
-        distribution_cfg["learn_std"] = False
-        distribution_cfg["std_range"] = [0.05, 1.0]
-
+        cfg["Environment_Config"]["seed"] = 6
         return cfg
-
+    elif config_name == "config_G":
+        cfg = deepcopy(config_A)
+        cfg["Environment_Config"]["seed"] = 1
+        cfg["command_range"] = {
+            "lin_vel_x": [0.0, 1.0],
+            "lin_vel_y": [0.0, 0.0],
+            "ang_vel_yaw": [0.0, 0.0],
+        }
+        return cfg
     else:
         valid = [
             "config_A",
@@ -226,37 +192,22 @@ def build_configs(config_name: str) -> dict:
             "config_F",
         ]
         raise ValueError(
-            f"Unknown config_name: {config_name}. "
-            f"Valid configs are: {', '.join(valid)}"
+            f"Unknown config_name: {config_name}. Valid configs are: {', '.join(valid)}"
         )
 
 
 def get_hypothesis(config_name: str) -> str:
     hypotheses = {
         "config_A": (
-            "Reference exploration setup with entropy 0.005 and learnable std "
-            "up to 1.0."
+            "Reference exploration setup with entropy 0.002 and learnable std "
+            "up to 0.75, forward commands from 0.2 to 0.8 m/s, and heading, "
+            "rear-leg air, and undesired-body-contact penalties."
         ),
-        "config_B": (
-            "Reducing entropy to 0.003 prevents std from rising excessively "
-            "while preserving enough exploration for gait discovery."
-        ),
-        "config_C": (
-            "Reducing entropy to 0.002 further improves deterministic-policy "
-            "quality without collapsing exploration."
-        ),
-        "config_D": (
-            "Entropy 0.003 plus std_max 0.75 provides a stable compromise "
-            "between exploration and deterministic gait quality."
-        ),
-        "config_E": (
-            "Entropy 0.002 plus std_max 0.75 provides a more conservative "
-            "learnable exploration regime."
-        ),
-        "config_F": (
-            "A fixed std of 0.30 tests whether learned exploration itself is "
-            "causing the gap between training behavior and deterministic eval."
-        ),
+        "config_B": "Same configuration as A with seed 2.",
+        "config_C": "Same configuration as A with seed 3.",
+        "config_D": "Same configuration as A with seed 4.",
+        "config_E": "Same configuration as A with seed 5.",
+        "config_F": "Same configuration as A with seed 6.",
     }
 
     if config_name not in hypotheses:

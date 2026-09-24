@@ -199,6 +199,11 @@ class OnPolicyRunner:
                 diagnostics=foot_means,
             )
 
+            if self.logger.writer is not None:
+                self.logger.writer.add_scalar(
+                    "Tracking/lin_vel_x_score", rollout_tracking.item(), it
+                )
+
             # Save model
             if self.logger.writer is not None and it % self.cfg["save_interval"] == 0:
                 self.save(os.path.join(self.logger.log_dir, f"model_{it}.pt"))  # type: ignore

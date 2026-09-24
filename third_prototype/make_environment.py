@@ -479,15 +479,12 @@ class Go2WalkingEnv:
         self.base_quat = self.base_quat / quat_norm
         self.base_lin_vel.copy_(base_vel_t[:, :3])
         self.base_ang_vel.copy_(base_vel_t[:, 3:6])
+        #self.base_ang_vel.copy_(to_torch(self.robot.get_ang(envs_idx=None)))
         self.dof_pos.copy_(dof_pos_t)
         self.dof_vel.copy_(dof_vel_t)
 
-        if (
-            contact_forces is None
-            or (
-                hasattr(contact_forces, "numel")
-                and contact_forces.numel() == 0
-            )
+        if contact_forces is None or (
+            hasattr(contact_forces, "numel") and contact_forces.numel() == 0
         ):
             self.foot_contacts.zero_()
             self.undesired_body_contact.zero_()
@@ -521,31 +518,22 @@ class Go2WalkingEnv:
             # --------------------------------------------------
             for j, link_idx in enumerate(self.foot_link_indices):
                 if link_idx < cf.shape[1]:
-                    self.foot_contacts[:, j].copy_(
-                        contact_mask[:, link_idx].float()
-                    )
+                    self.foot_contacts[:, j].copy_(contact_mask[:, link_idx].float())
                 else:
                     self.foot_contacts[:, j].zero_()
 
             # --------------------------------------------------
             # Alle Kontakte außer Füße
             # --------------------------------------------------
-            undesired_mask = (
-                contact_mask
-                & ~self._foot_link_mask.unsqueeze(0)
-            )
+            undesired_mask = contact_mask & ~self._foot_link_mask.unsqueeze(0)
 
             # Binär pro Environment:
             # hat irgendein Körperteil außer den Füßen Kontakt?
-            self.undesired_body_contact.copy_(
-                undesired_mask.any(dim=1).float()
-            )
+            self.undesired_body_contact.copy_(undesired_mask.any(dim=1).float())
 
             # Optional fürs Logging:
             # wie viele Nicht-Fuß-Links haben gleichzeitig Kontakt?
-            self.undesired_body_contact_count.copy_(
-                undesired_mask.sum(dim=1).float()
-            )
+            self.undesired_body_contact_count.copy_(undesired_mask.sum(dim=1).float())
 
     def _compute_observations(self):
         """Compute observations from current state"""
@@ -597,7 +585,7 @@ class Go2WalkingEnv:
             "x_progress": self.x_progress,
             "projected_gravity": transform_by_quat(self._gravity_vec, base_quat_inv),
             "heading_error": heading_error,
-            "undesired_body_contact": self.undesired_body_contact
+            "undesired_body_contact": self.undesired_body_contact,
         }
         reward_out = self.reward_fn(obs, actions, info)
         lin_vel_x_rew = None
@@ -704,11 +692,8 @@ class Go2WalkingEnv:
 
     def _compute_undesired_body_contacts(self):
         return {
-            "undesired_contact_count":
-                self.undesired_body_contact_count.mean(),
-
-            "undesired_contact_fraction":
-                self.undesired_body_contact.mean(),
+            "undesired_contact_count": self.undesired_body_contact_count.mean(),
+            "undesired_contact_fraction": self.undesired_body_contact.mean(),
         }
 
     def _compute_heading_error(self):
