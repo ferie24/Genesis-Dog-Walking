@@ -50,6 +50,7 @@ def build_env(
     reward_cfg: dict = None,
     command_range: dict = None,
     command_range_allowed: bool = False,
+    terminate_on_torso_contact: bool = False,
 ) -> Go2WalkingEnv:
     reward_fn = build_reward_fn(reward_cfg)
     env = Go2WalkingEnv(
@@ -62,6 +63,7 @@ def build_env(
         reward_fn=reward_fn,
         min_base_height=0.22,
         command_range_allowed=command_range_allowed,
+        terminate_on_torso_contact=terminate_on_torso_contact,
     )
     env.command_range = command_range
     return env
@@ -192,6 +194,7 @@ def main() -> None:
             },
         ),
         command_range_allowed=env_cfg.get("command_range_allowed", False),
+        terminate_on_torso_contact=env_cfg.get("terminate_on_torso_contact", False),
     )
 
     logs_root = project_root / "logs"
@@ -252,6 +255,7 @@ def main() -> None:
         episode_length_s=env_cfg.get("episode_length_s", 30.0),
         reward_cfg=reward_cfg,
         command_range_allowed=False,
+        terminate_on_torso_contact=env_cfg.get("terminate_on_torso_contact", False),
     )
     video_dir = project_root / "video" / run_name
     video_dir.mkdir(parents=True, exist_ok=True)

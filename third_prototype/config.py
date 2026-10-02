@@ -65,7 +65,7 @@ def build_configs(config_name: str) -> dict:
                 "actor": ["policy"],
                 "critic": ["policy"],
             },
-            "num_learning_iterations": 4000,
+            "num_learning_iterations": 5000,
             "algorithm": {
                 "class_name": "PPO",
                 "clip_param": 0.2,
@@ -116,9 +116,9 @@ def build_configs(config_name: str) -> dict:
             "tracking_sigma": 0.1,
             "x_progress": 0.5,
             # Keep these fixed during the exploration sweep.
-            "orientation": -0.25,
-            "rear_legs_air": -1.0,
-            "heading_error": -1.0,
+            "orientation": -0.0,
+            "rear_legs_air": -0.0,
+            "heading_error": -0.0,
             "undesired_body_contact": -0.1,
         },
         "Curriculum_Config": {
@@ -136,12 +136,12 @@ def build_configs(config_name: str) -> dict:
             "episode_length_s": 30.0,
             "num_envs": 4096,
             "command_range": {
-                "lin_vel_x": [0.2, 0.8],
+                "lin_vel_x": [0.4, 0.4],
                 "lin_vel_y": [0.0, 0.0],
                 "ang_vel_yaw": [0.0, 0.0],
             },
             "command_range_allowed": True,
-            "terminate_on_torso_contact": False,
+            "terminate_on_torso_contact": True,
         },
     }
 

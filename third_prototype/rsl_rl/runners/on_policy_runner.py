@@ -125,7 +125,9 @@ class OnPolicyRunner:
                     "fall_termination_fraction": torch.zeros((), device=self.device),
                     "heading_error_abs_mean": torch.zeros((), device=self.device),
                     "heading_error_signed_mean": torch.zeros((), device=self.device),
-                    "heading_error_abs_max": torch.zeros((), device=self.device)
+                    "heading_error_abs_max": torch.zeros((), device=self.device),
+                    "torso_contact_fraction": torch.zeros((), device=self.device),
+                    "torso_termination_fraction": torch.zeros((), device=self.device)
                 }   
                 
                 for _ in range(self.cfg["num_steps_per_env"]):

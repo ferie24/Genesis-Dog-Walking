@@ -84,12 +84,13 @@ class Rewards:
             + projected_gravity[:, 1] ** 2
         )
 
-        command_x = commands[:, 0].clamp(min=0.1)
-
-        progress_ratio = torch.clamp(
-            x_progress / command_x,
-            min=0.0,
-            max=1.0,
+        # x_progress is signed world-X displacement divided by dt. Its sum
+        # over an episode is proportional to net distance: backward movement
+        # cancels forward movement. No bonus is paid for a standstill command.
+        progress_velocity = torch.where(
+            commands[:, 0] > 0.1,
+            x_progress,
+            torch.zeros_like(x_progress),
         )
 
         contacts = foot_contacts > 0.5
@@ -110,7 +111,7 @@ class Rewards:
                 + self.s_action_rate * action_rate
                 + self.s_similar_to_default * similar_to_default
                 + self.s_sideway_movement * sideway_movement
-                + self.s_x_progress * progress_ratio
+                + self.s_x_progress * progress_velocity
                 + self.s_orientation * orientation
                 + self.s_heading_error * cos_heading_error
                 + self.s_rear_legs_air * reward_rear_legs_air

@@ -10,6 +10,11 @@ from genesis.utils.geom import (
 )
 from tensordict import TensorDict
 
+try:
+    from .termination import body_contact_mask, sample_terrain_height, termination_masks
+except ImportError:  # runner.py also imports this module as a script sibling.
+    from termination import body_contact_mask, sample_terrain_height, termination_masks
+
 
 class Go2WalkingEnv:
     def __init__(
@@ -23,6 +28,8 @@ class Go2WalkingEnv:
         min_up_dot=0.2,
         reward_fn=None,
         command_range_allowed=False,
+        terminate_on_torso_contact=False,
+        collect_diagnostics=False,
     ):
         """
         Args:
@@ -48,6 +55,8 @@ class Go2WalkingEnv:
         # Termination tolerances; loosen to avoid instant resets when touching down
         self.min_base_height = min_base_height
         self.min_up_dot = min_up_dot
+        self.terminate_on_torso_contact = bool(terminate_on_torso_contact)
+        self.collect_diagnostics = bool(collect_diagnostics)
 
         # Time and episode settings
         self.dt = 0.02  # 50Hz control frequency
@@ -229,7 +238,7 @@ class Go2WalkingEnv:
         self.robot: RigidEntity = self.scene.add_entity(
             gs.morphs.URDF(
                 file="urdf/go2/urdf/go2.urdf",
-                links_to_keep=["FL_foot", "FR_foot", "RL_foot", "RR_foot"],
+                links_to_keep=["FL_foot", "FR_foot", "RL_foot", "RR_foot", "Head_upper", "Head_lower"],
                 pos=self.base_init_pos.cpu().numpy(),
                 quat=self.base_init_quat.cpu().numpy(),
             ),
@@ -282,6 +291,18 @@ class Go2WalkingEnv:
                 raise RuntimeError(f"Foot link {name} not found in URDF.")
             self.foot_link_indices.append(int(link.idx - self.robot.link_start))
 
+        # Retain the fixed head links and include them in body termination:
+        # nose contact must terminate even when the base itself is clear.
+        self.torso_link_indices = []
+        for name in ("base", "Head_upper", "Head_lower"):
+            link = self.robot.get_link(name)
+            if link is None:
+                raise RuntimeError(f"Go2 body link '{name}' not found in URDF.")
+            self.torso_link_indices.append(int(link.idx - self.robot.link_start))
+        self.link_names = [None] * len(self.robot.links)
+        for link in self.robot.links:
+            self.link_names[int(link.idx - self.robot.link_start)] = link.name
+
     def _initialize_buffers(self):
         """Initialize state buffers after scene is built"""
         # Joint state buffers
@@ -293,6 +314,12 @@ class Go2WalkingEnv:
         self.base_quat = torch.zeros((self.num_envs, 4), device=self.device)
         self.base_lin_vel = torch.zeros((self.num_envs, 3), device=self.device)
         self.base_ang_vel = torch.zeros((self.num_envs, 3), device=self.device)
+        self.base_height_above_terrain = torch.zeros(self.num_envs, device=self.device)
+        if self.collect_diagnostics and self.use_terrain:
+            self._terrain_heights_m = torch.as_tensor(
+                self.terrain.terrain_hf, device=self.device, dtype=torch.float32
+            ) * float(self.terrain.terrain_scale[1])
+            self._terrain_horizontal_scale = float(self.terrain.terrain_scale[0])
 
         # Contact sensors
         self.foot_contacts = torch.zeros((self.num_envs, 4), device=self.device)
@@ -320,6 +347,9 @@ class Go2WalkingEnv:
         )
 
         self._foot_link_mask = None
+        self.link_contacts = torch.zeros(
+            (self.num_envs, len(self.link_names)), dtype=torch.bool, device=self.device
+        )
 
     def reset(self, env_ids=None):
         if env_ids is None:
@@ -421,6 +451,19 @@ class Go2WalkingEnv:
         foot_diag.update(reasons)
         foot_diag.update(heading_diag)
 
+        diagnostics = None
+        if self.collect_diagnostics:
+            # Capture terminal state before reset() overwrites position and contacts.
+            base_quat_inv = inv_quat(self.base_quat)
+            diagnostics = {
+                "base_pos": self.base_pos.clone(),
+                "base_height_above_terrain": self.base_height_above_terrain.clone(),
+                "base_lin_vel_local": transform_by_quat(self.base_lin_vel, base_quat_inv),
+                "base_ang_vel": self.base_ang_vel.clone(),
+                "link_contacts": self.link_contacts.clone(),
+                "x_progress": self.x_progress.clone(),
+            }
+
         if done_buf.any():
             self.reset(done_buf.nonzero(as_tuple=False).flatten())
 
@@ -429,6 +472,8 @@ class Go2WalkingEnv:
             "lin_vel_x_rew": lin_vel_x_rew,
             "foot_diag": foot_diag,
         }
+        if diagnostics is not None:
+            extras["diagnostics"] = diagnostics
         return self.get_observations(), rewards, done_buf, extras
 
     def _update_state(self):
@@ -436,6 +481,7 @@ class Go2WalkingEnv:
         base_pos = self.robot.get_pos(envs_idx=None)
         base_quat = self.robot.get_quat(envs_idx=None)
         base_vel = self.robot.get_vel(envs_idx=None)
+        base_ang = self.robot.get_ang(envs_idx=None)
         dof_pos = self.robot.get_dofs_position(self.dof_indices, envs_idx=None)
         dof_vel = self.robot.get_dofs_velocity(self.dof_indices, envs_idx=None)
         contact_forces = self.robot.get_links_net_contact_force(envs_idx=None)
@@ -449,37 +495,28 @@ class Go2WalkingEnv:
         base_pos_t = to_torch(base_pos)
         base_quat_t = to_torch(base_quat)
 
-        # Handle base_vel: ensure shape (...,6)
-        if isinstance(base_vel, torch.Tensor):
-            bv = base_vel
-            if bv.shape[-1] < 6:
-                pad = torch.zeros(
-                    (*bv.shape[:-1], 6 - bv.shape[-1]), device=bv.device, dtype=bv.dtype
-                )
-                bv = torch.cat([bv, pad], dim=-1)
-            base_vel_t = bv.to(self.device, non_blocking=True)
-        else:
-            base_vel_np = np.asarray(base_vel)
-            if base_vel_np.shape[-1] < 6:
-                pad = np.zeros(
-                    (base_vel_np.shape[0], 6 - base_vel_np.shape[-1]),
-                    dtype=base_vel_np.dtype,
-                )
-                base_vel_np = np.concatenate([base_vel_np, pad], axis=-1)
-            base_vel_t = torch.as_tensor(base_vel_np, device=self.device)
-
+        base_vel_t = to_torch(base_vel)
+        base_ang_t = to_torch(base_ang)
         dof_pos_t = to_torch(dof_pos)
         dof_vel_t = to_torch(dof_vel)
 
         self.base_pos.copy_(base_pos_t)
+        if self.collect_diagnostics:
+            if self.use_terrain:
+                ground_z = sample_terrain_height(
+                    self._terrain_heights_m, self.base_pos[:, :2],
+                    self._terrain_horizontal_scale,
+                )
+                self.base_height_above_terrain.copy_(self.base_pos[:, 2] - ground_z)
+            else:
+                self.base_height_above_terrain.copy_(self.base_pos[:, 2])
         self.x_progress = (self.base_pos[:, 0] - self.prev_base_pos_x) / self.dt
         self.prev_base_pos_x.copy_(self.base_pos[:, 0])
         self.base_quat.copy_(base_quat_t)
         quat_norm = self.base_quat.norm(dim=-1, keepdim=True).clamp(min=1e-6)
         self.base_quat = self.base_quat / quat_norm
-        self.base_lin_vel.copy_(base_vel_t[:, :3])
-        self.base_ang_vel.copy_(base_vel_t[:, 3:6])
-        #self.base_ang_vel.copy_(to_torch(self.robot.get_ang(envs_idx=None)))
+        self.base_lin_vel.copy_(base_vel_t)
+        self.base_ang_vel.copy_(base_ang_t)
         self.dof_pos.copy_(dof_pos_t)
         self.dof_vel.copy_(dof_vel_t)
 
@@ -487,6 +524,7 @@ class Go2WalkingEnv:
             hasattr(contact_forces, "numel") and contact_forces.numel() == 0
         ):
             self.foot_contacts.zero_()
+            self.link_contacts.zero_()
             self.undesired_body_contact.zero_()
             self.undesired_body_contact_count.zero_()
 
@@ -495,6 +533,7 @@ class Go2WalkingEnv:
 
             # [num_envs, num_links]
             contact_mask = cf.norm(dim=-1) > 1.0
+            self.link_contacts.copy_(contact_mask)
 
             # --------------------------------------------------
             # Foot mask nur EINMAL erzeugen
@@ -606,29 +645,26 @@ class Go2WalkingEnv:
 
         return rewards, lin_vel_x_rew
 
-    # make_environment.py – _check_termination():
     def _check_termination(self):
         base_quat_inv = inv_quat(self.base_quat)
         proj_gravity = transform_by_quat(self._gravity_vec, base_quat_inv)
-        roll_termination = torch.abs(proj_gravity[:, 1]) > 0.342
-        pitch_termination = torch.abs(proj_gravity[:, 0]) > 0.522
-        fall_termination = self.base_pos[:, 2] < self.min_base_height
-        # Grace period
-        grace_mask = self.episode_length_buf < 40
-
-        # Nur Terminations zählen, die tatsächlich wirksam sind
-        effective_roll = roll_termination & ~grace_mask
-        effective_pitch = pitch_termination & ~grace_mask
-        effective_fall = fall_termination & ~grace_mask
-
-        termination = effective_roll | effective_pitch | effective_fall
+        torso_contact = body_contact_mask(self.link_contacts, self.torso_link_indices)
+        masks = termination_masks(
+            projected_gravity=proj_gravity,
+            base_height=self.base_pos[:, 2],
+            min_base_height=self.min_base_height,
+            episode_length=self.episode_length_buf,
+            torso_contact=torso_contact,
+            terminate_on_torso_contact=self.terminate_on_torso_contact,
+        )
         reasons = {
-            "roll_termination_fraction": effective_roll.float().mean(),
-            "pitch_termination_fraction": effective_pitch.float().mean(),
-            "fall_termination_fraction": effective_fall.float().mean(),
+            "roll_termination_fraction": masks["roll"].float().mean(),
+            "pitch_termination_fraction": masks["pitch"].float().mean(),
+            "fall_termination_fraction": masks["fall"].float().mean(),
+            "torso_contact_fraction": torso_contact.float().mean(),
+            "torso_termination_fraction": masks["torso"].float().mean(),
         }
-
-        return termination, reasons
+        return masks["done"], reasons
 
     def set_commands(self, lin_vel_x, lin_vel_y, ang_vel_yaw):
         """
