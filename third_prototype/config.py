@@ -3,56 +3,24 @@ from copy import deepcopy
 
 def build_configs(config_name: str) -> dict:
     """
-    Exploration / policy-std sweep.
+    Seed sweep using the previous config B as the fixed baseline.
 
-    Goal:
-        Test whether the repeatedly observed rise of Policy/mean_std toward 1.0
-        is responsible for unstable training and poor deterministic evaluation.
+    A: seed 7 (reference).
+    B: seed 11.
+    C: seed 23.
+    D: seed 42.
+    E: seed 101.
 
-    Baseline:
-        - orientation = -0.25
-        - heading_error = -1.0
-        - rear_legs_air = -1.0
-        - undesired_body_contact = -0.1
-        - forward command range = 0.2–0.8 m/s
-        - terrain enabled
-        - fixed PPO learning rate = 3e-4
-        - entropy_coef = 0.002, learnable std in [0.05, 0.75]
-
-    Existing variant overrides are retained; C and E match the baseline,
-    and B and D are equivalent.
-
-    Suggested order:
-        config_A -> config_B -> config_C -> config_D -> config_E -> config_F
-
-    Important diagnostics:
-        Policy/mean_std
-        Train/mean_reward
-        Train/mean_episode_length
-        Loss/value
-
-        Gait/rear_both_air
-        Gait/diagonal_support
-        Gait/undesired_contact_fraction
-
-        heading_error_abs_mean
-        roll_termination
-        pitch_termination
-        fall_termination
-
-    Config F is a control experiment:
-        fixed Gaussian std = 0.30
-        learn_std = False
-        entropy_coef = 0.0
+    All rewards, PPO settings, curriculum, and environment parameters are
+    identical except the seed. Commands retain the current B ranges:
+    forward velocity 0.1-0.8 m/s and yaw velocity -0.5 to 0.5 rad/s.
+    Train each variant from scratch and compare at the same training iteration:
+    net forward distance, speed error, episode length, gait video, and falls.
     """
 
     # ============================================================
-    # CONFIG A — CURRENT EXPLORATION BASELINE
-    #
-    # Reference:
-    #   entropy_coef = 0.002
-    #   learn_std = True
-    #   std_range = [0.05, 0.75]
+    # CONFIG A — PREVIOUS CONFIG B: FIXED BASELINE, SEED 7
+    # Configs B-E change only the environment seed.
     # ============================================================
 
     config_A = {
@@ -106,8 +74,8 @@ def build_configs(config_name: str) -> dict:
             },
         },
         "Reward_Config": {
-            "tracking_lin_vel_x": 2.0,
-            "tracking_ang_vel": 1.0,
+            "tracking_lin_vel_x": 3.0,
+            "tracking_ang_vel": 0.25,
             "lin_vel_z": -1.0,
             "lin_vel_y": -5.0,
             "action_rate": -0.001,
@@ -115,10 +83,10 @@ def build_configs(config_name: str) -> dict:
             "sideway_movement": 0.0,
             "tracking_sigma": 0.1,
             "x_progress": 0.5,
-            # Keep these fixed during the exploration sweep.
+            # Preserve all reward weights from the selected config B.
             "orientation": -0.0,
-            "rear_legs_air": -0.0,
-            "heading_error": -0.0,
+            "rear_legs_air": -0.25,
+            "heading_error": -0.5,
             "undesired_body_contact": -0.1,
         },
         "Curriculum_Config": {
@@ -136,7 +104,7 @@ def build_configs(config_name: str) -> dict:
             "episode_length_s": 30.0,
             "num_envs": 4096,
             "command_range": {
-                "lin_vel_x": [0.4, 0.4],
+                "lin_vel_x": [0.1, 0.8],
                 "lin_vel_y": [0.0, 0.0],
                 "ang_vel_yaw": [0.0, 0.0],
             },
@@ -148,39 +116,27 @@ def build_configs(config_name: str) -> dict:
     if config_name == "config_A":
         return deepcopy(config_A)
 
-    # Configs B-F differ from config A only by seed.
+    # Configs B-E differ from config A only by seed.
     elif config_name == "config_B":
         cfg = deepcopy(config_A)
-        cfg["Environment_Config"]["seed"] = 2
+        cfg["Environment_Config"]["seed"] = 11
         return cfg
 
     elif config_name == "config_C":
         cfg = deepcopy(config_A)
-        cfg["Environment_Config"]["seed"] = 3
+        cfg["Environment_Config"]["seed"] = 23
+        cfg["Reward_Config"]["heading_error"] = -1.5
         return cfg
 
     elif config_name == "config_D":
         cfg = deepcopy(config_A)
-        cfg["Environment_Config"]["seed"] = 4
+        cfg["Environment_Config"]["seed"] = 42
+        cfg["Training_Config"]["num_learning_iterations"] = 7000  # Ensure same number of iterations for config D
         return cfg
 
     elif config_name == "config_E":
         cfg = deepcopy(config_A)
-        cfg["Environment_Config"]["seed"] = 5
-        return cfg
-
-    elif config_name == "config_F":
-        cfg = deepcopy(config_A)
-        cfg["Environment_Config"]["seed"] = 6
-        return cfg
-    elif config_name == "config_G":
-        cfg = deepcopy(config_A)
-        cfg["Environment_Config"]["seed"] = 1
-        cfg["command_range"] = {
-            "lin_vel_x": [0.0, 1.0],
-            "lin_vel_y": [0.0, 0.0],
-            "ang_vel_yaw": [0.0, 0.0],
-        }
+        cfg["Environment_Config"]["seed"] = 101
         return cfg
     else:
         valid = [
@@ -189,7 +145,6 @@ def build_configs(config_name: str) -> dict:
             "config_C",
             "config_D",
             "config_E",
-            "config_F",
         ]
         raise ValueError(
             f"Unknown config_name: {config_name}. Valid configs are: {', '.join(valid)}"
@@ -198,16 +153,11 @@ def build_configs(config_name: str) -> dict:
 
 def get_hypothesis(config_name: str) -> str:
     hypotheses = {
-        "config_A": (
-            "Reference exploration setup with entropy 0.002 and learnable std "
-            "up to 0.75, forward commands from 0.2 to 0.8 m/s, and heading, "
-            "rear-leg air, and undesired-body-contact penalties."
-        ),
-        "config_B": "Same configuration as A with seed 2.",
-        "config_C": "Same configuration as A with seed 3.",
-        "config_D": "Same configuration as A with seed 4.",
-        "config_E": "Same configuration as A with seed 5.",
-        "config_F": "Same configuration as A with seed 6.",
+        "config_A": "Selected previous config B unchanged, seed 7 (reference).",
+        "config_B": "Same baseline as A, seed 11; check training reproducibility.",
+        "config_C": "Same baseline as A, seed 23; check training reproducibility.",
+        "config_D": "Same baseline as A, seed 42; check training reproducibility.",
+        "config_E": "Same baseline as A, seed 101; check training reproducibility.",
     }
 
     if config_name not in hypotheses:
@@ -223,5 +173,4 @@ def list_configs() -> list[str]:
         "config_C",
         "config_D",
         "config_E",
-        "config_F",
     ]

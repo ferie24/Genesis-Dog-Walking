@@ -35,9 +35,9 @@ def termination_masks(
     episode_length: torch.Tensor,
     torso_contact: torch.Tensor,
     terminate_on_torso_contact: bool,
-    grace_steps: int = 40,
+    grace_steps: int = 75,
 ) -> dict[str, torch.Tensor]:
-    """Return per-environment reasons; body contact bypasses the pose grace period.
+    """Return per-environment reasons with a shared grace period after each reset.
 
     ``base_height`` is absolute world Z, matching the existing training rule.
     Terrain-relative height is measured separately for diagnosis and should
@@ -48,7 +48,7 @@ def termination_masks(
         "roll": (projected_gravity[:, 1].abs() > 0.342) & active,
         "pitch": (projected_gravity[:, 0].abs() > 0.522) & active,
         "fall": (base_height < min_base_height) & active,
-        "torso": torso_contact.bool() if terminate_on_torso_contact else torch.zeros_like(active),
+        "torso": (torso_contact.bool() & active) if terminate_on_torso_contact else torch.zeros_like(active),
     }
     masks["done"] = masks["roll"] | masks["pitch"] | masks["fall"] | masks["torso"]
     return masks

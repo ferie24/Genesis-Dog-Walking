@@ -30,6 +30,7 @@ class Go2WalkingEnv:
         command_range_allowed=False,
         terminate_on_torso_contact=False,
         collect_diagnostics=False,
+        termination_grace_s=1.5,
     ):
         """
         Args:
@@ -38,6 +39,7 @@ class Go2WalkingEnv:
             show_viewer: Whether to show the visual viewer
             use_terrain: If True, uses complex terrain; if False, uses flat plane
             episode_length_s: Maximum episode length in seconds
+            termination_grace_s: Seconds after each reset before failure termination
             min_base_height: Height below which the robot is considered fallen
             min_up_dot: Minimum dot(base_up, world_up) before considering the robot tipped
         """
@@ -61,6 +63,7 @@ class Go2WalkingEnv:
         # Time and episode settings
         self.dt = 0.02  # 50Hz control frequency
         self.max_episode_length = math.ceil(episode_length_s / self.dt)
+        self.termination_grace_steps = math.ceil(termination_grace_s / self.dt)
 
         # Robot configuration
         self.num_dof = 12  # 12 actuated joints (3 per leg)
@@ -656,6 +659,7 @@ class Go2WalkingEnv:
             episode_length=self.episode_length_buf,
             torso_contact=torso_contact,
             terminate_on_torso_contact=self.terminate_on_torso_contact,
+            grace_steps=self.termination_grace_steps,
         )
         reasons = {
             "roll_termination_fraction": masks["roll"].float().mean(),
