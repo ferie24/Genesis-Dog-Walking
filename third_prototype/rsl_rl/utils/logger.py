@@ -54,6 +54,7 @@ class Logger:
         self.lenbuffer = deque(maxlen=4096)
         self.cur_reward_sum = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
         self.cur_episode_length = torch.zeros(self.num_envs, dtype=torch.float, device=self.device)
+        self._episode_records = []
 
         # Create RND buffers
         if self.cfg["algorithm"]["rnd_cfg"]:
@@ -141,17 +142,31 @@ class Logger:
                 self.cur_reward_sum += rewards
             self.cur_episode_length += 1
 
-            # Clear data for completed episodes
-            new_ids = (dones > 0).nonzero(as_tuple=False)
-            self.rewbuffer.extend(self.cur_reward_sum[new_ids][:, 0].cpu().numpy().tolist())
-            self.lenbuffer.extend(self.cur_episode_length[new_ids][:, 0].cpu().numpy().tolist())
-            self.cur_reward_sum[new_ids] = 0
-            self.cur_episode_length[new_ids] = 0
+            # Keep fixed-size snapshots on device. Selecting done IDs with nonzero()
+            # and copying scalars to the CPU here would synchronize every env step.
+            done_mask = dones > 0
+            columns = [self.cur_reward_sum, self.cur_episode_length, done_mask.float()]
             if intrinsic_rewards is not None:
-                self.erewbuffer.extend(self.cur_ereward_sum[new_ids][:, 0].cpu().numpy().tolist())
-                self.irewbuffer.extend(self.cur_ireward_sum[new_ids][:, 0].cpu().numpy().tolist())
-                self.cur_ereward_sum[new_ids] = 0
-                self.cur_ireward_sum[new_ids] = 0
+                columns.extend((self.cur_ereward_sum, self.cur_ireward_sum))
+            self._episode_records.append(torch.stack(columns, dim=1).detach())
+            self.cur_reward_sum.masked_fill_(done_mask, 0)
+            self.cur_episode_length.masked_fill_(done_mask, 0)
+            if intrinsic_rewards is not None:
+                self.cur_ereward_sum.masked_fill_(done_mask, 0)
+                self.cur_ireward_sum.masked_fill_(done_mask, 0)
+
+    def _flush_episode_records(self) -> None:
+        """Transfer episode statistics once per logging iteration, in step/ID order."""
+        if not self._episode_records:
+            return
+        records = torch.stack(self._episode_records).cpu().numpy()
+        completed = records[records[:, :, 2] > 0]
+        self.rewbuffer.extend(completed[:, 0].tolist())
+        self.lenbuffer.extend(completed[:, 1].tolist())
+        if completed.shape[1] == 5:
+            self.erewbuffer.extend(completed[:, 3].tolist())
+            self.irewbuffer.extend(completed[:, 4].tolist())
+        self._episode_records.clear()
 
     def log(
         self,
@@ -175,17 +190,22 @@ class Logger:
         """
         
         if self.writer is not None:
+            self._flush_episode_records()
             collection_size = self.cfg["num_steps_per_env"] * self.num_envs * self.gpu_world_size
             iteration_time = collect_time + learn_time
             self.tot_timesteps += collection_size
             self.tot_time += iteration_time
             # Custom Diagnostics logging
             if diagnostics is not None:
-                for key, value in diagnostics.items():
-
-                    if isinstance(value, torch.Tensor):
-                        value = value.item()
-
+                tensor_keys = [key for key, value in diagnostics.items() if isinstance(value, torch.Tensor)]
+                tensors = [diagnostics[key].detach().reshape(()) for key in tensor_keys]
+                if tensors and len({value.device for value in tensors}) == 1:
+                    tensor_values = torch.stack(tensors).cpu().tolist()
+                else:
+                    tensor_values = [value.item() for value in tensors]
+                values = dict(diagnostics)
+                values.update(zip(tensor_keys, tensor_values))
+                for key, value in values.items():
                     self.writer.add_scalar(
                         f"Gait/{key}",
                         value,
@@ -221,7 +241,8 @@ class Logger:
             self.writer.add_scalar("Loss/learning_rate", learning_rate, it)
 
             # Log std
-            self.writer.add_scalar("Policy/mean_std", action_std.mean().item(), it)
+            mean_action_std = action_std.mean().item()
+            self.writer.add_scalar("Policy/mean_std", mean_action_std, it)
 
             # Log performance
             fps = int(collection_size / (collect_time + learn_time))
@@ -274,7 +295,7 @@ class Logger:
                 log_string += f"""{"Mean episode length:":>{pad}} {statistics.mean(self.lenbuffer):.2f}\n"""
 
             # Print std
-            log_string += f"""{"Mean action std:":>{pad}} {action_std.mean().item():.2f}\n"""
+            log_string += f"""{"Mean action std:":>{pad}} {mean_action_std:.2f}\n"""
 
             # Print episode extras
             if not print_minimal:

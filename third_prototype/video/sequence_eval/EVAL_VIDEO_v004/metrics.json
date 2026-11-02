@@ -1,0 +1,924 @@
+{
+  "model_path": "/home/friemen/working_dir/Genesis-Dog-Walking/third_prototype/logs/go2_genesis_rsl_rl_config_B_v037/model_9999.pt",
+  "config_source": "/home/friemen/working_dir/Genesis-Dog-Walking/third_prototype/logs/wandb/run-20261029_165113-ksxs0l7r/files/config.yaml",
+  "use_terrain": true,
+  "terrain_option": "saved",
+  "velocity_frame": "robot_local",
+  "dt_s": 0.02,
+  "sequence": [
+    {
+      "name": "anfahren",
+      "duration_s": 4.0,
+      "vx_m_s": 0.2,
+      "yaw_rad_s": 0.0
+    },
+    {
+      "name": "beschleunigen_04",
+      "duration_s": 4.0,
+      "vx_m_s": 0.4,
+      "yaw_rad_s": 0.0
+    },
+    {
+      "name": "beschleunigen_06",
+      "duration_s": 4.0,
+      "vx_m_s": 0.6,
+      "yaw_rad_s": 0.0
+    },
+    {
+      "name": "abbremsen_02",
+      "duration_s": 4.0,
+      "vx_m_s": 0.2,
+      "yaw_rad_s": 0.0
+    },
+    {
+      "name": "stopp_1",
+      "duration_s": 3.0,
+      "vx_m_s": 0.0,
+      "yaw_rad_s": 0.0
+    },
+    {
+      "name": "drehen_links",
+      "duration_s": 4.0,
+      "vx_m_s": 0.0,
+      "yaw_rad_s": 0.4
+    },
+    {
+      "name": "stopp_2",
+      "duration_s": 3.0,
+      "vx_m_s": 0.0,
+      "yaw_rad_s": 0.0
+    },
+    {
+      "name": "weiterfahren",
+      "duration_s": 4.0,
+      "vx_m_s": 0.4,
+      "yaw_rad_s": 0.0
+    },
+    {
+      "name": "kurve_rechts",
+      "duration_s": 4.0,
+      "vx_m_s": 0.4,
+      "yaw_rad_s": -0.4
+    },
+    {
+      "name": "stopp_3",
+      "duration_s": 3.0,
+      "vx_m_s": 0.0,
+      "yaw_rad_s": 0.0
+    },
+    {
+      "name": "beschleunigen_07",
+      "duration_s": 4.0,
+      "vx_m_s": 0.7,
+      "yaw_rad_s": 0.0
+    },
+    {
+      "name": "beschleunigen_08",
+      "duration_s": 6.0,
+      "vx_m_s": 0.8,
+      "yaw_rad_s": 0.0
+    },
+    {
+      "name": "kurve_rechts_08",
+      "duration_s": 8.0,
+      "vx_m_s": 0.8,
+      "yaw_rad_s": -0.4
+    },
+    {
+      "name": "geradeaus_08",
+      "duration_s": 4.0,
+      "vx_m_s": 0.8,
+      "yaw_rad_s": 0.0
+    },
+    {
+      "name": "kurve_links_08",
+      "duration_s": 8.0,
+      "vx_m_s": 0.8,
+      "yaw_rad_s": 0.4
+    },
+    {
+      "name": "stopp_08",
+      "duration_s": 4.0,
+      "vx_m_s": 0.0,
+      "yaw_rad_s": 0.0
+    }
+  ],
+  "trials": [
+    {
+      "completed": true,
+      "end_reason": "sequence_horizon",
+      "requested_duration_s": 73.0,
+      "duration_s": 73.0,
+      "warmup_s": 2.0,
+      "phases": [
+        {
+          "name": "anfahren",
+          "command_vx_m_s": 0.2,
+          "command_vy_m_s": 0.0,
+          "command_yaw_rate_rad_s": 0.0,
+          "requested_duration_s": 4.0,
+          "duration_s": 4.0,
+          "started": true,
+          "completed": true,
+          "coverage_fraction": 1.0,
+          "x": {
+            "mean_m_s": 0.2039852241706103,
+            "std_m_s": 0.02150383873915552,
+            "bias_m_s": 0.0039852241706102975,
+            "mae_m_s": 0.012911584215238687,
+            "rmse_m_s": 0.021870004394366774,
+            "max_abs_error_m_s": 0.1729622844606638,
+            "within_tolerance_fraction": 0.99
+          },
+          "y": {
+            "mean_m_s": -0.00540336149992072,
+            "std_m_s": 0.01296386597397888,
+            "bias_m_s": -0.00540336149992072,
+            "mae_m_s": 0.010487206129328115,
+            "rmse_m_s": 0.014044861568919534,
+            "max_abs_error_m_s": 0.04636500030755997,
+            "within_tolerance_fraction": 1.0
+          },
+          "yaw": {
+            "mean_rad_s": -0.0018097998530720361,
+            "std_rad_s": 0.024493817011238,
+            "bias_rad_s": -0.0018097998530720361,
+            "mae_rad_s": 0.019383532275969628,
+            "rmse_rad_s": 0.02456058727490431,
+            "max_abs_error_rad_s": 0.0850255936384201,
+            "within_tolerance_fraction": 1.0
+          },
+          "hold_xy_tolerance_m_s": 0.1,
+          "hold_yaw_tolerance_rad_s": 0.1,
+          "hold_duration_s": 0.5,
+          "time_to_hold_s": 0.54,
+          "within_tolerance_requested_fraction": 0.99,
+          "stop_path_until_hold_m": null,
+          "phase_path_m": 0.8293233765544515,
+          "end_reason": "phase_horizon"
+        },
+        {
+          "name": "beschleunigen_04",
+          "command_vx_m_s": 0.4,
+          "command_vy_m_s": 0.0,
+          "command_yaw_rate_rad_s": 0.0,
+          "requested_duration_s": 4.0,
+          "duration_s": 4.0,
+          "started": true,
+          "completed": true,
+          "coverage_fraction": 1.0,
+          "x": {
+            "mean_m_s": 0.40506164222955704,
+            "std_m_s": 0.024574101442998552,
+            "bias_m_s": 0.005061642229557015,
+            "mae_m_s": 0.017873920619487758,
+            "rmse_m_s": 0.025089971777401795,
+            "max_abs_error_m_s": 0.1643643617630005,
+            "within_tolerance_fraction": 0.99
+          },
+          "y": {
+            "mean_m_s": -0.001869471607133164,
+            "std_m_s": 0.017501836735330272,
+            "bias_m_s": -0.001869471607133164,
+            "mae_m_s": 0.013462146987512824,
+            "rmse_m_s": 0.01760139804674712,
+            "max_abs_error_m_s": 0.06799343973398209,
+            "within_tolerance_fraction": 1.0
+          },
+          "yaw": {
+            "mean_rad_s": -0.001514214050839655,
+            "std_rad_s": 0.027830886611209405,
+            "bias_rad_s": -0.001514214050839655,
+            "mae_rad_s": 0.019534092340036294,
+            "rmse_rad_s": 0.02787204861070953,
+            "max_abs_error_rad_s": 0.13315118849277496,
+            "within_tolerance_fraction": 0.99
+          },
+          "hold_xy_tolerance_m_s": 0.1,
+          "hold_yaw_tolerance_rad_s": 0.1,
+          "hold_duration_s": 0.5,
+          "time_to_hold_s": 0.54,
+          "within_tolerance_requested_fraction": 0.98,
+          "stop_path_until_hold_m": null,
+          "phase_path_m": 1.6443210900463092,
+          "end_reason": "phase_horizon"
+        },
+        {
+          "name": "beschleunigen_06",
+          "command_vx_m_s": 0.6,
+          "command_vy_m_s": 0.0,
+          "command_yaw_rate_rad_s": 0.0,
+          "requested_duration_s": 4.0,
+          "duration_s": 4.0,
+          "started": true,
+          "completed": true,
+          "coverage_fraction": 1.0,
+          "x": {
+            "mean_m_s": 0.6047915311157703,
+            "std_m_s": 0.03348710018664207,
+            "bias_m_s": 0.004791531115770362,
+            "mae_m_s": 0.025515231579542164,
+            "rmse_m_s": 0.033828163552631685,
+            "max_abs_error_m_s": 0.1582536160945892,
+            "within_tolerance_fraction": 0.99
+          },
+          "y": {
+            "mean_m_s": -0.007029442727325658,
+            "std_m_s": 0.0243474419345288,
+            "bias_m_s": -0.007029442727325658,
+            "mae_m_s": 0.01918309055687132,
+            "rmse_m_s": 0.025341882207365798,
+            "max_abs_error_m_s": 0.08425550162792206,
+            "within_tolerance_fraction": 1.0
+          },
+          "yaw": {
+            "mean_rad_s": -0.006425825859114411,
+            "std_rad_s": 0.036997589466962987,
+            "bias_rad_s": -0.006425825859114411,
+            "mae_rad_s": 0.027577780690116925,
+            "rmse_rad_s": 0.03755146953632566,
+            "max_abs_error_rad_s": 0.14449119567871094,
+            "within_tolerance_fraction": 0.98
+          },
+          "hold_xy_tolerance_m_s": 0.1,
+          "hold_yaw_tolerance_rad_s": 0.1,
+          "hold_duration_s": 0.5,
+          "time_to_hold_s": 1.3,
+          "within_tolerance_requested_fraction": 0.955,
+          "stop_path_until_hold_m": null,
+          "phase_path_m": 2.4299079535525188,
+          "end_reason": "phase_horizon"
+        },
+        {
+          "name": "abbremsen_02",
+          "command_vx_m_s": 0.2,
+          "command_vy_m_s": 0.0,
+          "command_yaw_rate_rad_s": 0.0,
+          "requested_duration_s": 4.0,
+          "duration_s": 4.0,
+          "started": true,
+          "completed": true,
+          "coverage_fraction": 1.0,
+          "x": {
+            "mean_m_s": 0.21594131469726563,
+            "std_m_s": 0.04279059458852352,
+            "bias_m_s": 0.015941314697265615,
+            "mae_m_s": 0.020546846508979796,
+            "rmse_m_s": 0.0456635576747655,
+            "max_abs_error_m_s": 0.3742715001106262,
+            "within_tolerance_fraction": 0.975
+          },
+          "y": {
+            "mean_m_s": -0.003960194024402881,
+            "std_m_s": 0.016282610825398936,
+            "bias_m_s": -0.003960194024402881,
+            "mae_m_s": 0.012060350356841809,
+            "rmse_m_s": 0.016757283550812015,
+            "max_abs_error_m_s": 0.07760964334011078,
+            "within_tolerance_fraction": 1.0
+          },
+          "yaw": {
+            "mean_rad_s": -0.0007048608461627737,
+            "std_rad_s": 0.025965266043172928,
+            "bias_rad_s": -0.0007048608461627737,
+            "mae_rad_s": 0.019890842747990974,
+            "rmse_rad_s": 0.02597483146249851,
+            "max_abs_error_rad_s": 0.09796244651079178,
+            "within_tolerance_fraction": 1.0
+          },
+          "hold_xy_tolerance_m_s": 0.1,
+          "hold_yaw_tolerance_rad_s": 0.1,
+          "hold_duration_s": 0.5,
+          "time_to_hold_s": 0.6,
+          "within_tolerance_requested_fraction": 0.975,
+          "stop_path_until_hold_m": null,
+          "phase_path_m": 0.8788487646083832,
+          "end_reason": "phase_horizon"
+        },
+        {
+          "name": "stopp_1",
+          "command_vx_m_s": 0.0,
+          "command_vy_m_s": 0.0,
+          "command_yaw_rate_rad_s": 0.0,
+          "requested_duration_s": 3.0,
+          "duration_s": 3.0,
+          "started": true,
+          "completed": true,
+          "coverage_fraction": 1.0,
+          "x": {
+            "mean_m_s": -0.018540122735090942,
+            "std_m_s": 0.021353877595384527,
+            "bias_m_s": -0.018540122735090942,
+            "mae_m_s": 0.02309084525385212,
+            "rmse_m_s": 0.028279396022385293,
+            "max_abs_error_m_s": 0.156149223446846,
+            "within_tolerance_fraction": 0.9933333333333333
+          },
+          "y": {
+            "mean_m_s": -0.011678871494708195,
+            "std_m_s": 0.005756727822779464,
+            "bias_m_s": -0.011678871494708195,
+            "mae_m_s": 0.011731027824522849,
+            "rmse_m_s": 0.01302059732176181,
+            "max_abs_error_m_s": 0.030726894736289978,
+            "within_tolerance_fraction": 1.0
+          },
+          "yaw": {
+            "mean_rad_s": 0.015114846614499886,
+            "std_rad_s": 0.009406879709117527,
+            "bias_rad_s": 0.015114846614499886,
+            "mae_rad_s": 0.015778348067154488,
+            "rmse_rad_s": 0.01780303272034475,
+            "max_abs_error_rad_s": 0.05085381492972374,
+            "within_tolerance_fraction": 1.0
+          },
+          "hold_xy_tolerance_m_s": 0.05,
+          "hold_yaw_tolerance_rad_s": 0.1,
+          "hold_duration_s": 0.5,
+          "time_to_hold_s": 0.54,
+          "within_tolerance_requested_fraction": 0.9866666666666667,
+          "stop_path_until_hold_m": 0.016767501936405384,
+          "phase_path_m": 0.07723473975388792,
+          "end_reason": "phase_horizon"
+        },
+        {
+          "name": "drehen_links",
+          "command_vx_m_s": 0.0,
+          "command_vy_m_s": 0.0,
+          "command_yaw_rate_rad_s": 0.4,
+          "requested_duration_s": 4.0,
+          "duration_s": 4.0,
+          "started": true,
+          "completed": true,
+          "coverage_fraction": 1.0,
+          "x": {
+            "mean_m_s": 0.02466223216848448,
+            "std_m_s": 0.0329325219030855,
+            "bias_m_s": 0.02466223216848448,
+            "mae_m_s": 0.03553645341540687,
+            "rmse_m_s": 0.04114336756306461,
+            "max_abs_error_m_s": 0.0839846208691597,
+            "within_tolerance_fraction": 1.0
+          },
+          "y": {
+            "mean_m_s": -0.0020417707154410892,
+            "std_m_s": 0.02463635828525999,
+            "bias_m_s": -0.0020417707154410892,
+            "mae_m_s": 0.019799675308458973,
+            "rmse_m_s": 0.02472082072290747,
+            "max_abs_error_m_s": 0.0696638971567154,
+            "within_tolerance_fraction": 1.0
+          },
+          "yaw": {
+            "mean_rad_s": 0.3892272186279297,
+            "std_rad_s": 0.04809036678124815,
+            "bias_rad_s": -0.010772781372070335,
+            "mae_rad_s": 0.03819663351774216,
+            "rmse_rad_s": 0.04928220972770399,
+            "max_abs_error_rad_s": 0.23280691504478457,
+            "within_tolerance_fraction": 0.955
+          },
+          "hold_xy_tolerance_m_s": 0.1,
+          "hold_yaw_tolerance_rad_s": 0.1,
+          "hold_duration_s": 0.5,
+          "time_to_hold_s": 0.78,
+          "within_tolerance_requested_fraction": 0.955,
+          "stop_path_until_hold_m": null,
+          "phase_path_m": 0.17194672712530207,
+          "end_reason": "phase_horizon"
+        },
+        {
+          "name": "stopp_2",
+          "command_vx_m_s": 0.0,
+          "command_vy_m_s": 0.0,
+          "command_yaw_rate_rad_s": 0.0,
+          "requested_duration_s": 3.0,
+          "duration_s": 3.0,
+          "started": true,
+          "completed": true,
+          "coverage_fraction": 1.0,
+          "x": {
+            "mean_m_s": 0.004241962791541785,
+            "std_m_s": 0.016551798256868658,
+            "bias_m_s": 0.004241962791541785,
+            "mae_m_s": 0.007491550411432399,
+            "rmse_m_s": 0.017086728003362882,
+            "max_abs_error_m_s": 0.09827594459056854,
+            "within_tolerance_fraction": 1.0
+          },
+          "y": {
+            "mean_m_s": 0.0033083363286793123,
+            "std_m_s": 0.005654246543929212,
+            "bias_m_s": 0.0033083363286793123,
+            "mae_m_s": 0.00422061607532972,
+            "rmse_m_s": 0.006550999407967822,
+            "max_abs_error_m_s": 0.03112473338842392,
+            "within_tolerance_fraction": 1.0
+          },
+          "yaw": {
+            "mean_rad_s": -0.019942657311379057,
+            "std_rad_s": 0.015471088319685364,
+            "bias_rad_s": -0.019942657311379057,
+            "mae_rad_s": 0.022385961520728113,
+            "rmse_rad_s": 0.02524012984187295,
+            "max_abs_error_rad_s": 0.11986173689365387,
+            "within_tolerance_fraction": 0.9933333333333333
+          },
+          "hold_xy_tolerance_m_s": 0.05,
+          "hold_yaw_tolerance_rad_s": 0.1,
+          "hold_duration_s": 0.5,
+          "time_to_hold_s": 0.9,
+          "within_tolerance_requested_fraction": 0.9533333333333334,
+          "stop_path_until_hold_m": 0.02630879871370865,
+          "phase_path_m": 0.035334667195433864,
+          "end_reason": "phase_horizon"
+        },
+        {
+          "name": "weiterfahren",
+          "command_vx_m_s": 0.4,
+          "command_vy_m_s": 0.0,
+          "command_yaw_rate_rad_s": 0.0,
+          "requested_duration_s": 4.0,
+          "duration_s": 4.0,
+          "started": true,
+          "completed": true,
+          "coverage_fraction": 1.0,
+          "x": {
+            "mean_m_s": 0.4000244775414467,
+            "std_m_s": 0.04018719907994836,
+            "bias_m_s": 2.4477541446663586e-05,
+            "mae_m_s": 0.0200270612835884,
+            "rmse_m_s": 0.04018720653443627,
+            "max_abs_error_m_s": 0.3354936629533768,
+            "within_tolerance_fraction": 0.98
+          },
+          "y": {
+            "mean_m_s": -0.0008740727421536576,
+            "std_m_s": 0.022249276952324634,
+            "bias_m_s": -0.0008740727421536576,
+            "mae_m_s": 0.016184031153243267,
+            "rmse_m_s": 0.022266439501182497,
+            "max_abs_error_m_s": 0.07382649183273315,
+            "within_tolerance_fraction": 1.0
+          },
+          "yaw": {
+            "mean_rad_s": 0.0008792483014985919,
+            "std_rad_s": 0.026596552775302082,
+            "bias_rad_s": 0.0008792483014985919,
+            "mae_rad_s": 0.019894408366817516,
+            "rmse_rad_s": 0.026611082223485707,
+            "max_abs_error_rad_s": 0.13514308631420135,
+            "within_tolerance_fraction": 0.99
+          },
+          "hold_xy_tolerance_m_s": 0.1,
+          "hold_yaw_tolerance_rad_s": 0.1,
+          "hold_duration_s": 0.5,
+          "time_to_hold_s": 0.72,
+          "within_tolerance_requested_fraction": 0.97,
+          "stop_path_until_hold_m": null,
+          "phase_path_m": 1.6173816759424087,
+          "end_reason": "phase_horizon"
+        },
+        {
+          "name": "kurve_rechts",
+          "command_vx_m_s": 0.4,
+          "command_vy_m_s": 0.0,
+          "command_yaw_rate_rad_s": -0.4,
+          "requested_duration_s": 4.0,
+          "duration_s": 4.0,
+          "started": true,
+          "completed": true,
+          "coverage_fraction": 1.0,
+          "x": {
+            "mean_m_s": 0.41040700539946556,
+            "std_m_s": 0.019408392635863664,
+            "bias_m_s": 0.01040700539946554,
+            "mae_m_s": 0.017992391735315316,
+            "rmse_m_s": 0.02202252179230053,
+            "max_abs_error_m_s": 0.05704334974288938,
+            "within_tolerance_fraction": 1.0
+          },
+          "y": {
+            "mean_m_s": -0.0133807462510822,
+            "std_m_s": 0.023006614536482232,
+            "bias_m_s": -0.0133807462510822,
+            "mae_m_s": 0.02178221270134145,
+            "rmse_m_s": 0.026614820733308085,
+            "max_abs_error_m_s": 0.0737059935927391,
+            "within_tolerance_fraction": 1.0
+          },
+          "yaw": {
+            "mean_rad_s": -0.39593727644532917,
+            "std_rad_s": 0.0350102710651733,
+            "bias_rad_s": 0.0040627235546708326,
+            "mae_rad_s": 0.02052874407917261,
+            "rmse_rad_s": 0.03524520964242641,
+            "max_abs_error_rad_s": 0.27977734953165057,
+            "within_tolerance_fraction": 0.985
+          },
+          "hold_xy_tolerance_m_s": 0.1,
+          "hold_yaw_tolerance_rad_s": 0.1,
+          "hold_duration_s": 0.5,
+          "time_to_hold_s": 0.54,
+          "within_tolerance_requested_fraction": 0.985,
+          "stop_path_until_hold_m": null,
+          "phase_path_m": 1.6601858922645485,
+          "end_reason": "phase_horizon"
+        },
+        {
+          "name": "stopp_3",
+          "command_vx_m_s": 0.0,
+          "command_vy_m_s": 0.0,
+          "command_yaw_rate_rad_s": 0.0,
+          "requested_duration_s": 3.0,
+          "duration_s": 3.0,
+          "started": true,
+          "completed": true,
+          "coverage_fraction": 1.0,
+          "x": {
+            "mean_m_s": 0.005915265381918289,
+            "std_m_s": 0.04848743621911435,
+            "bias_m_s": 0.005915265381918289,
+            "mae_m_s": 0.016955147351060684,
+            "rmse_m_s": 0.048846922478711,
+            "max_abs_error_m_s": 0.33615341782569885,
+            "within_tolerance_fraction": 0.9533333333333334
+          },
+          "y": {
+            "mean_m_s": 0.00744611436331373,
+            "std_m_s": 0.009088199942784213,
+            "bias_m_s": 0.00744611436331373,
+            "mae_m_s": 0.008643199118620638,
+            "rmse_m_s": 0.011749042399769013,
+            "max_abs_error_m_s": 0.05064709857106209,
+            "within_tolerance_fraction": 1.0
+          },
+          "yaw": {
+            "mean_rad_s": -0.0028425555809371873,
+            "std_rad_s": 0.02495181771713789,
+            "bias_rad_s": -0.0028425555809371873,
+            "mae_rad_s": 0.018019633552927794,
+            "rmse_rad_s": 0.025113210261135343,
+            "max_abs_error_rad_s": 0.10766303539276123,
+            "within_tolerance_fraction": 0.9933333333333333
+          },
+          "hold_xy_tolerance_m_s": 0.05,
+          "hold_yaw_tolerance_rad_s": 0.1,
+          "hold_duration_s": 0.5,
+          "time_to_hold_s": 0.66,
+          "within_tolerance_requested_fraction": 0.9466666666666667,
+          "stop_path_until_hold_m": 0.044091568208909665,
+          "phase_path_m": 0.06484244064346245,
+          "end_reason": "phase_horizon"
+        },
+        {
+          "name": "beschleunigen_07",
+          "command_vx_m_s": 0.7,
+          "command_vy_m_s": 0.0,
+          "command_yaw_rate_rad_s": 0.0,
+          "requested_duration_s": 4.0,
+          "duration_s": 4.0,
+          "started": true,
+          "completed": true,
+          "coverage_fraction": 1.0,
+          "x": {
+            "mean_m_s": 0.6559758554399013,
+            "std_m_s": 0.09535858356109221,
+            "bias_m_s": -0.0440241445600986,
+            "mae_m_s": 0.06169238904118537,
+            "rmse_m_s": 0.10503039923291858,
+            "max_abs_error_m_s": 0.6355409890413284,
+            "within_tolerance_fraction": 0.885
+          },
+          "y": {
+            "mean_m_s": 0.022615611914079636,
+            "std_m_s": 0.03630269679294475,
+            "bias_m_s": 0.022615611914079636,
+            "mae_m_s": 0.03342983262031339,
+            "rmse_m_s": 0.042770921157823355,
+            "max_abs_error_m_s": 0.14675448834896088,
+            "within_tolerance_fraction": 0.97
+          },
+          "yaw": {
+            "mean_rad_s": -0.007698941128924161,
+            "std_rad_s": 0.07448728290816906,
+            "bias_rad_s": -0.007698941128924161,
+            "mae_rad_s": 0.047652485011481074,
+            "rmse_rad_s": 0.07488410385087246,
+            "max_abs_error_rad_s": 0.28067708015441895,
+            "within_tolerance_fraction": 0.895
+          },
+          "hold_xy_tolerance_m_s": 0.1,
+          "hold_yaw_tolerance_rad_s": 0.1,
+          "hold_duration_s": 0.5,
+          "time_to_hold_s": 1.36,
+          "within_tolerance_requested_fraction": 0.745,
+          "stop_path_until_hold_m": null,
+          "phase_path_m": 2.6257295023889475,
+          "end_reason": "phase_horizon"
+        },
+        {
+          "name": "beschleunigen_08",
+          "command_vx_m_s": 0.8,
+          "command_vy_m_s": 0.0,
+          "command_yaw_rate_rad_s": 0.0,
+          "requested_duration_s": 6.0,
+          "duration_s": 6.0,
+          "started": true,
+          "completed": true,
+          "coverage_fraction": 1.0,
+          "x": {
+            "mean_m_s": 0.7640774921576182,
+            "std_m_s": 0.06441755428311936,
+            "bias_m_s": -0.035922507842381844,
+            "mae_m_s": 0.05466594465573631,
+            "rmse_m_s": 0.0737566801686777,
+            "max_abs_error_m_s": 0.20899103879928593,
+            "within_tolerance_fraction": 0.86
+          },
+          "y": {
+            "mean_m_s": 0.038450592551950345,
+            "std_m_s": 0.0512933793116541,
+            "bias_m_s": 0.038450592551950345,
+            "mae_m_s": 0.04748945543570395,
+            "rmse_m_s": 0.06410506086733968,
+            "max_abs_error_m_s": 0.25010955333709717,
+            "within_tolerance_fraction": 0.9033333333333333
+          },
+          "yaw": {
+            "mean_rad_s": -0.0018138640890053162,
+            "std_rad_s": 0.09380618320272788,
+            "bias_rad_s": -0.0018138640890053162,
+            "mae_rad_s": 0.05487336194569555,
+            "rmse_rad_s": 0.09382371826994029,
+            "max_abs_error_rad_s": 0.5153582096099854,
+            "within_tolerance_fraction": 0.8533333333333334
+          },
+          "hold_xy_tolerance_m_s": 0.1,
+          "hold_yaw_tolerance_rad_s": 0.1,
+          "hold_duration_s": 0.5,
+          "time_to_hold_s": null,
+          "within_tolerance_requested_fraction": 0.6366666666666667,
+          "stop_path_until_hold_m": null,
+          "phase_path_m": 4.592400317205453,
+          "end_reason": "phase_horizon"
+        },
+        {
+          "name": "kurve_rechts_08",
+          "command_vx_m_s": 0.8,
+          "command_vy_m_s": 0.0,
+          "command_yaw_rate_rad_s": -0.4,
+          "requested_duration_s": 8.0,
+          "duration_s": 8.0,
+          "started": true,
+          "completed": true,
+          "coverage_fraction": 1.0,
+          "x": {
+            "mean_m_s": 0.585835787691176,
+            "std_m_s": 0.18655325617288476,
+            "bias_m_s": -0.2141642123088241,
+            "mae_m_s": 0.21569847204536202,
+            "rmse_m_s": 0.28402187807027307,
+            "max_abs_error_m_s": 0.6472226560115815,
+            "within_tolerance_fraction": 0.3725
+          },
+          "y": {
+            "mean_m_s": -0.04783677870153042,
+            "std_m_s": 0.06751836389363967,
+            "bias_m_s": -0.04783677870153042,
+            "mae_m_s": 0.06222151563364605,
+            "rmse_m_s": 0.0827471259888411,
+            "max_abs_error_m_s": 0.3159441351890564,
+            "within_tolerance_fraction": 0.7875
+          },
+          "yaw": {
+            "mean_rad_s": -0.4145938521740027,
+            "std_rad_s": 0.1318846995206241,
+            "bias_rad_s": -0.014593852174002655,
+            "mae_rad_s": 0.08817911447910591,
+            "rmse_rad_s": 0.1326896924742911,
+            "max_abs_error_rad_s": 0.5842034161090851,
+            "within_tolerance_fraction": 0.7075
+          },
+          "hold_xy_tolerance_m_s": 0.1,
+          "hold_yaw_tolerance_rad_s": 0.1,
+          "hold_duration_s": 0.5,
+          "time_to_hold_s": null,
+          "within_tolerance_requested_fraction": 0.275,
+          "stop_path_until_hold_m": null,
+          "phase_path_m": 4.758645366783164,
+          "end_reason": "phase_horizon"
+        },
+        {
+          "name": "geradeaus_08",
+          "command_vx_m_s": 0.8,
+          "command_vy_m_s": 0.0,
+          "command_yaw_rate_rad_s": 0.0,
+          "requested_duration_s": 4.0,
+          "duration_s": 4.0,
+          "started": true,
+          "completed": true,
+          "coverage_fraction": 1.0,
+          "x": {
+            "mean_m_s": 0.7274385565519332,
+            "std_m_s": 0.07314945087803162,
+            "bias_m_s": -0.07256144344806675,
+            "mae_m_s": 0.08272070527076725,
+            "rmse_m_s": 0.10303400040289881,
+            "max_abs_error_m_s": 0.23197321891784672,
+            "within_tolerance_fraction": 0.63
+          },
+          "y": {
+            "mean_m_s": -0.04041398454304726,
+            "std_m_s": 0.047967310999279145,
+            "bias_m_s": -0.04041398454304726,
+            "mae_m_s": 0.047734941123562746,
+            "rmse_m_s": 0.06272282735294407,
+            "max_abs_error_m_s": 0.2303394079208374,
+            "within_tolerance_fraction": 0.895
+          },
+          "yaw": {
+            "mean_rad_s": 0.010670420435344568,
+            "std_rad_s": 0.17229816093889466,
+            "bias_rad_s": 0.010670420435344568,
+            "mae_rad_s": 0.08652329116841428,
+            "rmse_rad_s": 0.17262825416249875,
+            "max_abs_error_rad_s": 1.0972095727920532,
+            "within_tolerance_fraction": 0.79
+          },
+          "hold_xy_tolerance_m_s": 0.1,
+          "hold_yaw_tolerance_rad_s": 0.1,
+          "hold_duration_s": 0.5,
+          "time_to_hold_s": null,
+          "within_tolerance_requested_fraction": 0.46,
+          "stop_path_until_hold_m": null,
+          "phase_path_m": 2.925334936531643,
+          "end_reason": "phase_horizon"
+        },
+        {
+          "name": "kurve_links_08",
+          "command_vx_m_s": 0.8,
+          "command_vy_m_s": 0.0,
+          "command_yaw_rate_rad_s": 0.4,
+          "requested_duration_s": 8.0,
+          "duration_s": 8.0,
+          "started": true,
+          "completed": true,
+          "coverage_fraction": 1.0,
+          "x": {
+            "mean_m_s": 0.7062449812889099,
+            "std_m_s": 0.08591539753984204,
+            "bias_m_s": -0.09375501871109013,
+            "mae_m_s": 0.10093394190073017,
+            "rmse_m_s": 0.12716705181746552,
+            "max_abs_error_m_s": 0.32998349070549016,
+            "within_tolerance_fraction": 0.6125
+          },
+          "y": {
+            "mean_m_s": -0.01019112487016173,
+            "std_m_s": 0.04351519959042329,
+            "bias_m_s": -0.01019112487016173,
+            "mae_m_s": 0.0331902803007506,
+            "rmse_m_s": 0.04469263498064982,
+            "max_abs_error_m_s": 0.16471000015735626,
+            "within_tolerance_fraction": 0.955
+          },
+          "yaw": {
+            "mean_rad_s": 0.37160848421510306,
+            "std_rad_s": 0.10241359082542857,
+            "bias_rad_s": -0.02839151578489693,
+            "mae_rad_s": 0.06589851310197264,
+            "rmse_rad_s": 0.10627615797685931,
+            "max_abs_error_rad_s": 0.5080451130867004,
+            "within_tolerance_fraction": 0.8
+          },
+          "hold_xy_tolerance_m_s": 0.1,
+          "hold_yaw_tolerance_rad_s": 0.1,
+          "hold_duration_s": 0.5,
+          "time_to_hold_s": 2.1,
+          "within_tolerance_requested_fraction": 0.475,
+          "stop_path_until_hold_m": null,
+          "phase_path_m": 5.651969056014918,
+          "end_reason": "phase_horizon"
+        },
+        {
+          "name": "stopp_08",
+          "command_vx_m_s": 0.0,
+          "command_vy_m_s": 0.0,
+          "command_yaw_rate_rad_s": 0.0,
+          "requested_duration_s": 4.0,
+          "duration_s": 4.0,
+          "started": true,
+          "completed": true,
+          "coverage_fraction": 1.0,
+          "x": {
+            "mean_m_s": 0.007157498998512892,
+            "std_m_s": 0.06373810358463325,
+            "bias_m_s": 0.007157498998512892,
+            "mae_m_s": 0.021033505541872728,
+            "rmse_m_s": 0.0641387218494347,
+            "max_abs_error_m_s": 0.5570589303970337,
+            "within_tolerance_fraction": 0.97
+          },
+          "y": {
+            "mean_m_s": -0.007148195823756396,
+            "std_m_s": 0.0078601769044723,
+            "bias_m_s": -0.007148195823756396,
+            "mae_m_s": 0.008757238819162011,
+            "rmse_m_s": 0.010624456903972464,
+            "max_abs_error_m_s": 0.033878251910209656,
+            "within_tolerance_fraction": 1.0
+          },
+          "yaw": {
+            "mean_rad_s": -0.002244346222360036,
+            "std_rad_s": 0.027320987676023367,
+            "bias_rad_s": -0.002244346222360036,
+            "mae_rad_s": 0.012767930640038685,
+            "rmse_rad_s": 0.027413016206890524,
+            "max_abs_error_rad_s": 0.28881293535232544,
+            "within_tolerance_fraction": 0.99
+          },
+          "hold_xy_tolerance_m_s": 0.05,
+          "hold_yaw_tolerance_rad_s": 0.1,
+          "hold_duration_s": 0.5,
+          "time_to_hold_s": 0.64,
+          "within_tolerance_requested_fraction": 0.915,
+          "stop_path_until_hold_m": 0.05329128506725743,
+          "phase_path_m": 0.10083448114469581,
+          "end_reason": "phase_horizon"
+        }
+      ],
+      "trial": 1,
+      "seed": 100,
+      "video_path": "/home/friemen/working_dir/Genesis-Dog-Walking/third_prototype/video/sequence_eval/EVAL_VIDEO_v004/trial_001.mp4",
+      "csv_path": "/home/friemen/working_dir/Genesis-Dog-Walking/third_prototype/video/sequence_eval/EVAL_VIDEO_v004/trial_001.csv",
+      "plot_path": "/home/friemen/working_dir/Genesis-Dog-Walking/third_prototype/video/sequence_eval/EVAL_VIDEO_v004/trial_001.png"
+    }
+  ],
+  "terrain_settings": {
+    "randomize": false,
+    "n_subterrains": [
+      1,
+      1
+    ],
+    "subterrain_size": [
+      60.0,
+      40.0
+    ],
+    "horizontal_scale": 0.25,
+    "vertical_scale": 0.005,
+    "subterrain_types": [
+      [
+        "fractal_terrain"
+      ]
+    ],
+    "subterrain_parameters": {
+      "pyramid_sloped_terrain": {
+        "slope": -0.1
+      },
+      "stepping_stones_terrain": {
+        "stone_size": 1.0,
+        "stone_distance": 0.25,
+        "max_height": 0.2,
+        "platform_size": 0.0
+      },
+      "discrete_obstacles_terrain": {
+        "max_height": 0.05,
+        "min_size": 1.0,
+        "max_size": 5.0,
+        "num_rects": 20
+      },
+      "flat_terrain": {},
+      "random_uniform_terrain": {
+        "min_height": -0.1,
+        "max_height": 0.1,
+        "step": 0.1,
+        "downsampled_scale": 0.5
+      },
+      "wave_terrain": {
+        "num_waves": 2.0,
+        "amplitude": 0.1
+      },
+      "pyramid_stairs_terrain": {
+        "step_width": 0.75,
+        "step_height": -0.1
+      },
+      "stairs_terrain": {
+        "step_width": 0.75,
+        "step_height": -0.1
+      },
+      "sloped_terrain": {
+        "slope": -0.5
+      },
+      "fractal_terrain": {
+        "levels": 8,
+        "scale": 3.0
+      }
+    }
+  },
+  "base_init_pos_world_m": [
+    10.0,
+    20.0,
+    1.0
+  ]
+}

@@ -59,6 +59,7 @@ class Go2WalkingEnv:
         self.min_up_dot = min_up_dot
         self.terminate_on_torso_contact = bool(terminate_on_torso_contact)
         self.collect_diagnostics = bool(collect_diagnostics)
+        self.record_eval_video = False
 
         # Time and episode settings
         self.dt = 0.02  # 50Hz control frequency
@@ -111,7 +112,11 @@ class Go2WalkingEnv:
             "lin_vel_x": (0.2, 0.8),  # Forward/backward velocity range (m/s)
             "lin_vel_y": (0.0, 0.0),  # Lateral velocity range (m/s)
             "ang_vel_yaw": (0.0, 0.0),  # Yaw angular velocity range (rad/s)
+            "steps": (150, 251),  # 3-5 seconds; upper bound is exclusive
         }
+        self.command_steps_left = torch.zeros(
+            self.num_envs, device=self.device, dtype=torch.long
+        )
 
         # Default joint positions (standing pose)
         self.default_dof_pos = torch.tensor(
@@ -218,16 +223,25 @@ class Go2WalkingEnv:
             # Complex terrain with height variations - smoothed out
             self.terrain = self.scene.add_entity(
                 gs.morphs.Terrain(
-                    n_subterrains=(3, 1),
+                    n_subterrains=(1, 1),
                     horizontal_scale=0.25,
                     vertical_scale=0.005,
-                    subterrain_size=(25, 15),
+                    subterrain_size=(60, 40),
                     subterrain_types="fractal_terrain",
                     randomize=False,
+                    subterrain_parameters={
+                        "fractal_terrain": {
+                            "levels": 8,
+                            "scale": 3.0,
+                        },
+                    },
                 ),
             )
-            # Need to spawn robot higher due to differnt terrain heights
-            self.base_init_pos = torch.tensor([5.0, 5.0, 1.0], device=self.device)
+
+            self.base_init_pos = torch.tensor(
+                [10.0, 20.0, 1.0],
+                device=self.device,
+            )
         else:
             # Simple flat plane
             self.plane = self.scene.add_entity(gs.morphs.Plane())
@@ -241,7 +255,14 @@ class Go2WalkingEnv:
         self.robot: RigidEntity = self.scene.add_entity(
             gs.morphs.URDF(
                 file="urdf/go2/urdf/go2.urdf",
-                links_to_keep=["FL_foot", "FR_foot", "RL_foot", "RR_foot", "Head_upper", "Head_lower"],
+                links_to_keep=[
+                    "FL_foot",
+                    "FR_foot",
+                    "RL_foot",
+                    "RR_foot",
+                    "Head_upper",
+                    "Head_lower",
+                ],
                 pos=self.base_init_pos.cpu().numpy(),
                 quat=self.base_init_quat.cpu().numpy(),
             ),
@@ -318,7 +339,7 @@ class Go2WalkingEnv:
         self.base_lin_vel = torch.zeros((self.num_envs, 3), device=self.device)
         self.base_ang_vel = torch.zeros((self.num_envs, 3), device=self.device)
         self.base_height_above_terrain = torch.zeros(self.num_envs, device=self.device)
-        if self.collect_diagnostics and self.use_terrain:
+        if self.use_terrain:
             self._terrain_heights_m = torch.as_tensor(
                 self.terrain.terrain_hf, device=self.device, dtype=torch.float32
             ) * float(self.terrain.terrain_scale[1])
@@ -376,15 +397,14 @@ class Go2WalkingEnv:
             envs_idx=env_ids,
         )
 
-        self.actions[env_ids].zero_()
-        self.last_actions[env_ids].zero_()
+        self.actions[env_ids] = 0.0
+        self.last_actions[env_ids] = 0.0
         self.prev_base_pos_x[env_ids] = pos_batch[:, 0]
-        self.x_progress[env_ids].zero_()
+        self.x_progress[env_ids] = 0.0
 
         if self.command_range_allowed:
             self._sample_commands(env_ids)
         self._update_state()
-        self._update_follow_camera()
         self._compute_observations()
 
         return self.obs_buf
@@ -425,7 +445,6 @@ class Go2WalkingEnv:
 
         # Update state
         self._update_state()
-        self._update_follow_camera()
 
         # Compute observations and rewards
         self._compute_observations()
@@ -437,7 +456,6 @@ class Go2WalkingEnv:
         terminated, reasons = self._check_termination()
         self.reset_buf = time_outs | terminated
         done_buf = self.reset_buf.clone()
-
         self.last_actions[:] = self.actions[:]
 
         # Vor dem Reset eine Kopie ziehen
@@ -457,15 +475,36 @@ class Go2WalkingEnv:
         diagnostics = None
         if self.collect_diagnostics:
             # Capture terminal state before reset() overwrites position and contacts.
-            base_quat_inv = inv_quat(self.base_quat)
             diagnostics = {
                 "base_pos": self.base_pos.clone(),
+                "base_quat": self.base_quat.clone(),
                 "base_height_above_terrain": self.base_height_above_terrain.clone(),
-                "base_lin_vel_local": transform_by_quat(self.base_lin_vel, base_quat_inv),
+                "base_lin_vel_local": self.base_lin_vel_base.clone(),
                 "base_ang_vel": self.base_ang_vel.clone(),
+                "base_ang_vel_local": self.base_ang_vel_base.clone(),
                 "link_contacts": self.link_contacts.clone(),
                 "x_progress": self.x_progress.clone(),
             }
+
+        # Capture the final pose before an automatic reset replaces it.
+        if self.record_eval_video:
+            self._update_follow_camera()
+            self.camera.render()
+
+        # Reward and diagnostics above belong to the command used for this action.
+        # Publish changed commands only in the observations for the next action.
+        if self.command_range_allowed:
+            self.command_steps_left -= 1
+            due = (self.command_steps_left <= 0) & ~done_buf
+            self._sample_commands(env_mask=due)
+
+            # Nur die vom Kommando abhängigen Observations aktualisieren
+            self.obs_buf[:, 9:12] = self.commands
+
+            heading_error = self._compute_heading_error()
+            self.heading_error = heading_error
+            self.obs_buf[:, 48] = torch.sin(heading_error)
+            self.obs_buf[:, 49] = torch.cos(heading_error)
 
         if done_buf.any():
             self.reset(done_buf.nonzero(as_tuple=False).flatten())
@@ -504,15 +543,16 @@ class Go2WalkingEnv:
         dof_vel_t = to_torch(dof_vel)
 
         self.base_pos.copy_(base_pos_t)
-        if self.collect_diagnostics:
-            if self.use_terrain:
-                ground_z = sample_terrain_height(
-                    self._terrain_heights_m, self.base_pos[:, :2],
-                    self._terrain_horizontal_scale,
-                )
-                self.base_height_above_terrain.copy_(self.base_pos[:, 2] - ground_z)
-            else:
-                self.base_height_above_terrain.copy_(self.base_pos[:, 2])
+
+        if self.use_terrain:
+            ground_z = sample_terrain_height(
+                self._terrain_heights_m,
+                self.base_pos[:, :2],
+                self._terrain_horizontal_scale,
+            )
+            self.base_height_above_terrain.copy_(self.base_pos[:, 2] - ground_z)
+        else:
+            self.base_height_above_terrain.copy_(self.base_pos[:, 2])
         self.x_progress = (self.base_pos[:, 0] - self.prev_base_pos_x) / self.dt
         self.prev_base_pos_x.copy_(self.base_pos[:, 0])
         self.base_quat.copy_(base_quat_t)
@@ -587,8 +627,17 @@ class Go2WalkingEnv:
         base_lin_vel_base = transform_by_quat(self.base_lin_vel, base_quat_inv)
         base_ang_vel_base = transform_by_quat(self.base_ang_vel, base_quat_inv)
 
+        # Reuse these unscaled quantities in rewards, termination and snapshots.
+        # Every state refresh is followed by this method, including reset().
+        self.base_lin_vel_base = base_lin_vel_base
+        self.base_ang_vel_base = base_ang_vel_base
+        self.projected_gravity = proj_gravity
+        self.yaw = self._compute_yaw()
+
         # Heading Error: sin and cos of heading error
-        heading_error = self._compute_heading_error()
+        heading_error = self._compute_heading_error(yaw=self.yaw)
+        self.heading_error = heading_error
+        # self.commands[:, 2] = self._update_heading_yaw(heading_error)
         # Assemble observations in-place to avoid temporary cat allocations each step.
         self.obs_buf[:, 0:3] = base_lin_vel_base * 2.0
         self.obs_buf[:, 3:6] = base_ang_vel_base * 0.25
@@ -603,12 +652,10 @@ class Go2WalkingEnv:
     def _compute_rewards(self):
         obs = self.obs_buf
         actions = self.actions
-        base_quat_inv = inv_quat(self.base_quat)
-        base_lin_vel_base = transform_by_quat(self.base_lin_vel, base_quat_inv)
         orientation_error = 1.0 - transform_by_quat(self._up_vec, self.base_quat)[:, 2]
-        heading_error = self._compute_heading_error()
         info = {
-            "base_lin_vel_base": base_lin_vel_base,
+            "base_lin_vel_base": self.base_lin_vel_base,
+            "base_ang_vel_base": self.base_ang_vel_base,
             "base_vel": self.base_lin_vel,
             "base_ang_vel": self.base_ang_vel,
             "base_pos": self.base_pos,
@@ -625,8 +672,9 @@ class Go2WalkingEnv:
             "episode_length_buf": self.episode_length_buf,
             "max_episode_length": self.max_episode_length,
             "x_progress": self.x_progress,
-            "projected_gravity": transform_by_quat(self._gravity_vec, base_quat_inv),
-            "heading_error": heading_error,
+            "yaw": self.yaw,
+            "projected_gravity": self.projected_gravity,
+            "heading_error": self.heading_error,
             "undesired_body_contact": self.undesired_body_contact,
         }
         reward_out = self.reward_fn(obs, actions, info)
@@ -649,12 +697,10 @@ class Go2WalkingEnv:
         return rewards, lin_vel_x_rew
 
     def _check_termination(self):
-        base_quat_inv = inv_quat(self.base_quat)
-        proj_gravity = transform_by_quat(self._gravity_vec, base_quat_inv)
         torso_contact = body_contact_mask(self.link_contacts, self.torso_link_indices)
         masks = termination_masks(
-            projected_gravity=proj_gravity,
-            base_height=self.base_pos[:, 2],
+            projected_gravity=self.projected_gravity,
+            base_height=self.base_height_above_terrain,
             min_base_height=self.min_base_height,
             episode_length=self.episode_length_buf,
             torso_contact=torso_contact,
@@ -736,7 +782,8 @@ class Go2WalkingEnv:
             "undesired_contact_fraction": self.undesired_body_contact.mean(),
         }
 
-    def _compute_heading_error(self):
+    def _compute_yaw(self):
+        """Return the actual base yaw, independent of the desired heading."""
         # Lokale +X-Achse des Roboters in Weltkoordinaten transformieren
         forward_world = transform_by_quat(
             self._forward_vec,
@@ -744,32 +791,88 @@ class Go2WalkingEnv:
         )
 
         # Aktuelle Yaw-/Heading-Richtung des Roboters
-        current_heading = torch.atan2(
+        return torch.atan2(
             forward_world[:, 1],
             forward_world[:, 0],
         )
 
-        # Gewünschte Richtung: Welt +X = 0 rad
-        desired_heading = torch.zeros_like(current_heading)
-
-        # Signed angular error, sauber auf [-pi, pi] gewrappt
-        heading_diff = current_heading - desired_heading
-
-        heading_error = torch.atan2(
-            torch.sin(heading_diff),
-            torch.cos(heading_diff),
-        )
-
+    def _compute_heading_error(self, yaw=None):
+        """Compute the heading error between the commanded direction and the actual yaw."""
+        soll_richtung = torch.atan2(self.commands[:, 1], self.commands[:, 0])
+        aktueller_yaw = self._compute_yaw() if yaw is None else yaw
+        delta = soll_richtung - aktueller_yaw
+        # Wrap the angle to [-pi, pi]
+        heading_error = torch.atan2(torch.sin(delta), torch.cos(delta))
         return heading_error
 
-    def _sample_commands(self, env_ids):
-        """Sample random commands within the specified ranges."""
-        self.commands[env_ids, 0] = torch.empty(
-            len(env_ids), device=self.device
-        ).uniform_(*self.command_range["lin_vel_x"])
-        self.commands[env_ids, 1] = torch.empty(
-            len(env_ids), device=self.device
-        ).uniform_(*self.command_range["lin_vel_y"])
-        self.commands[env_ids, 2] = torch.empty(
-            len(env_ids), device=self.device
-        ).uniform_(*self.command_range["ang_vel_yaw"])
+    def _update_heading_yaw(self, heading_error=None):
+        """Update the commanded heading based on the current heading error."""
+        if (
+            self.commands[:, 0].abs().max() < 1e-3
+            and self.commands[:, 1].abs().max() < 1e-3
+        ):
+            # If the commanded linear velocity is near zero, don't adjust heading.
+            return self.commands[:, 2]
+        if heading_error is None:
+            heading_error = self._compute_heading_error()
+        # Adjust the commanded yaw to reduce the heading error
+        heading_gain = 1.0  # Gain for heading correction
+        max_yaw_rate = 1.0  # Maximum yaw rate (rad/s)
+
+        yaw_rate_target = torch.clamp(
+            heading_gain * heading_error,
+            -max_yaw_rate,
+            max_yaw_rate,
+        )
+        return yaw_rate_target
+
+    def _sample_commands(self, env_ids=None, *, env_mask=None):
+        """Sample commands and hold timers for IDs, a mask, or all environments.
+
+        Reset passes IDs. Periodic resampling passes a full-size boolean mask,
+        avoiding a GPU-to-CPU synchronization to determine its selected count.
+        Timer bounds in command_range['steps'] follow torch.randint: [low, high).
+        """
+
+        if env_ids is not None and env_mask is not None:
+            raise ValueError("Pass either env_ids or env_mask, not both.")
+        if env_mask is not None and (
+            env_mask.dtype != torch.bool or env_mask.shape != (self.num_envs,)
+        ):
+            raise ValueError("env_mask must be a boolean vector of length num_envs.")
+
+        count = self.num_envs if env_ids is None else len(env_ids)
+
+        choice = torch.rand(count, device=self.device)
+
+        translate = choice < 0.85
+
+        rotate = (choice >= 0.4) & (choice < 0.9)
+
+        new_commands = torch.empty(
+            (count, 3), device=self.device, dtype=self.commands.dtype
+        )
+        new_commands[:, 0].uniform_(*self.command_range["lin_vel_x"])
+        new_commands[:, 1].uniform_(*self.command_range["lin_vel_y"])
+        new_commands[:, 2].uniform_(*self.command_range["ang_vel_yaw"])
+        new_commands[:, 0] = torch.where(translate, new_commands[:, 0], 0.0)
+        new_commands[:, 1] = 0.0
+        new_commands[:, 2] = torch.where(rotate, new_commands[:, 2], 0.0)
+        new_timers = torch.randint(
+            *self.command_range.get("steps", (150, 251)),
+            (count,),
+            device=self.device,
+            dtype=torch.long,
+        )
+
+        if env_mask is not None:
+            self.commands.copy_(
+                torch.where(env_mask[:, None], new_commands, self.commands)
+            )
+            self.command_steps_left.copy_(
+                torch.where(env_mask, new_timers, self.command_steps_left)
+            )
+        else:
+            selection = slice(None) if env_ids is None else env_ids
+            self.commands[selection] = new_commands
+            self.command_steps_left[selection] = new_timers

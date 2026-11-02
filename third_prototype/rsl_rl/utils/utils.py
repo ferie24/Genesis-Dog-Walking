@@ -274,18 +274,32 @@ def resolve_obs_groups(
 
 def check_nan(obs: TensorDict, rewards: torch.Tensor, dones: torch.Tensor) -> None:
     """Raise ``ValueError`` if any environment output contains NaN."""
-    for key, tensor in obs.items():
-        if torch.isnan(tensor).any():
+    items = list(obs.items())
+    tensors = [tensor for _, tensor in items] + [rewards, dones]
+    nan_flags = [torch.isnan(tensor).any() for tensor in tensors]
+    if len({flag.device for flag in nan_flags}) == 1:
+        # Checking each CUDA scalar with an if would synchronize once per tensor.
+        # Keep detailed group errors, but take a single host decision on valid steps.
+        flags = torch.stack(nan_flags)
+        if not flags.any():
+            return
+        invalid = flags.cpu().tolist()
+    else:
+        # Preserve support for unusual environments with mixed-device outputs.
+        invalid = [bool(flag) for flag in nan_flags]
+
+    for (key, _), is_nan in zip(items, invalid):
+        if is_nan:
             raise ValueError(
                 f"The observation group '{key}' returned by the environment contains NaN values. This usually indicates"
                 " a bug in the environment's step() or reset() function."
             )
-    if torch.isnan(rewards).any():
+    if invalid[-2]:
         raise ValueError(
             "The rewards returned by the environment contain NaN values. This usually indicates a bug in the"
             " environment's reward computation."
         )
-    if torch.isnan(dones).any():
+    if invalid[-1]:
         raise ValueError(
             "The dones returned by the environment contain NaN values. This usually indicates a bug in the"
             " environment's termination logic."

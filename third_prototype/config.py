@@ -3,24 +3,24 @@ from copy import deepcopy
 
 def build_configs(config_name: str) -> dict:
     """
-    Seed sweep using the previous config B as the fixed baseline.
+    Yaw reward sweep using the previous config B as the fixed baseline.
 
-    A: seed 7 (reference).
-    B: seed 11.
-    C: seed 23.
-    D: seed 42.
-    E: seed 101.
+    A: tracking_ang_vel 0.5 (reference).
+    B: tracking_ang_vel 1.0.
+    C: tracking_ang_vel 1.5.
+    D: tracking_ang_vel 2.0.
+    E: tracking_ang_vel 2.5.
 
-    All rewards, PPO settings, curriculum, and environment parameters are
-    identical except the seed. Commands retain the current B ranges:
-    forward velocity 0.1-0.8 m/s and yaw velocity -0.5 to 0.5 rad/s.
+    All other rewards, PPO settings, curriculum, and environment parameters
+    are identical, including seed 7. Commands retain the current B ranges:
+    forward velocity 0.1-0.8 m/s and yaw velocity -0.4 to 0.4 rad/s.
     Train each variant from scratch and compare at the same training iteration:
-    net forward distance, speed error, episode length, gait video, and falls.
+    forward speed error, yaw rate error, episode length, gait video, and falls.
     """
 
     # ============================================================
-    # CONFIG A — PREVIOUS CONFIG B: FIXED BASELINE, SEED 7
-    # Configs B-E change only the environment seed.
+    # CONFIG A — YAW REWARD 0.5: FIXED BASELINE, SEED 7
+    # Configs B-E change only the yaw tracking reward weight.
     # ============================================================
 
     config_A = {
@@ -33,7 +33,7 @@ def build_configs(config_name: str) -> dict:
                 "actor": ["policy"],
                 "critic": ["policy"],
             },
-            "num_learning_iterations": 5000,
+            "num_learning_iterations": 7000,
             "algorithm": {
                 "class_name": "PPO",
                 "clip_param": 0.2,
@@ -75,19 +75,18 @@ def build_configs(config_name: str) -> dict:
         },
         "Reward_Config": {
             "tracking_lin_vel_x": 3.0,
-            "tracking_ang_vel": 0.25,
-            "lin_vel_z": -1.0,
-            "lin_vel_y": -5.0,
+            "tracking_ang_vel": 2.0,
+            "tracking_lin_vel_y": 3.0,
             "action_rate": -0.001,
             "similar_to_default": 0.0,
             "sideway_movement": 0.0,
             "tracking_sigma": 0.1,
             "x_progress": 0.5,
-            # Preserve all reward weights from the selected config B.
             "orientation": -0.0,
             "rear_legs_air": -0.25,
-            "heading_error": -0.5,
+            "heading_error": 0,
             "undesired_body_contact": -0.1,
+            "tracking_sigma_ang_vel": 0.05,
         },
         "Curriculum_Config": {
             "enabled": False,
@@ -106,7 +105,8 @@ def build_configs(config_name: str) -> dict:
             "command_range": {
                 "lin_vel_x": [0.1, 0.8],
                 "lin_vel_y": [0.0, 0.0],
-                "ang_vel_yaw": [0.0, 0.0],
+                "ang_vel_yaw": [-0.4, 0.4],
+                "steps": [150, 251],  # 3-5 seconds at 50Hz
             },
             "command_range_allowed": True,
             "terminate_on_torso_contact": True,
@@ -116,27 +116,26 @@ def build_configs(config_name: str) -> dict:
     if config_name == "config_A":
         return deepcopy(config_A)
 
-    # Configs B-E differ from config A only by seed.
+    # Configs B-E differ from config A only by yaw tracking reward weight.
     elif config_name == "config_B":
         cfg = deepcopy(config_A)
-        cfg["Environment_Config"]["seed"] = 11
+        #fg["Reward_Config"]["heading_error"] = -0.2
+        cfg["Reward_Config"]["rear_legs_air"] = -1.0
         return cfg
 
     elif config_name == "config_C":
         cfg = deepcopy(config_A)
-        cfg["Environment_Config"]["seed"] = 23
-        cfg["Reward_Config"]["heading_error"] = -1.5
+        cfg["Environment_Config"]["seed"] = 4
         return cfg
 
     elif config_name == "config_D":
         cfg = deepcopy(config_A)
-        cfg["Environment_Config"]["seed"] = 42
-        cfg["Training_Config"]["num_learning_iterations"] = 7000  # Ensure same number of iterations for config D
+        cfg["Environment_Config"]["seed"] = 345
         return cfg
 
     elif config_name == "config_E":
         cfg = deepcopy(config_A)
-        cfg["Environment_Config"]["seed"] = 101
+        cfg["Environment_Config"]["seed"] = 11234
         return cfg
     else:
         valid = [
@@ -153,11 +152,11 @@ def build_configs(config_name: str) -> dict:
 
 def get_hypothesis(config_name: str) -> str:
     hypotheses = {
-        "config_A": "Selected previous config B unchanged, seed 7 (reference).",
-        "config_B": "Same baseline as A, seed 11; check training reproducibility.",
-        "config_C": "Same baseline as A, seed 23; check training reproducibility.",
-        "config_D": "Same baseline as A, seed 42; check training reproducibility.",
-        "config_E": "Same baseline as A, seed 101; check training reproducibility.",
+        "config_A": "Yaw tracking reward 0.5, seed 7 (reference).",
+        "config_B": "Same baseline as A, yaw tracking reward 1.0.",
+        "config_C": "Same baseline as A, yaw tracking reward 1.5.",
+        "config_D": "Same baseline as A, yaw tracking reward 2.0.",
+        "config_E": "Same baseline as A, yaw tracking reward 2.5.",
     }
 
     if config_name not in hypotheses:

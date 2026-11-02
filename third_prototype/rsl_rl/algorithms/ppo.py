@@ -307,15 +307,17 @@ class PPO:
                 self.rnd.optimizer.step()
 
             # Store the losses
-            mean_value_loss += value_loss.item()
-            mean_surrogate_loss += surrogate_loss.item()
-            mean_entropy += entropy.mean().item()
+            # These values are only used for logging. Keep them on device until
+            # all minibatches finish instead of synchronizing CUDA for each item().
+            mean_value_loss += value_loss.detach()
+            mean_surrogate_loss += surrogate_loss.detach()
+            mean_entropy += entropy.detach().mean()
             # RND loss
             if mean_rnd_loss is not None:
-                mean_rnd_loss += rnd_loss.item()
+                mean_rnd_loss += rnd_loss.detach()
             # Symmetry loss
             if mean_symmetry_loss is not None:
-                mean_symmetry_loss += symmetry_loss.item()
+                mean_symmetry_loss += symmetry_loss.detach()
 
         # Divide the losses by the number of updates
         num_updates = self.num_learning_epochs * self.num_mini_batches
@@ -338,6 +340,12 @@ class PPO:
             loss_dict["rnd"] = mean_rnd_loss
         if self.symmetry:
             loss_dict["symmetry"] = mean_symmetry_loss
+
+        # The KL average is already a Python number (adaptive LR needs it during
+        # each minibatch). Transfer the remaining detached metrics in one batch.
+        tensor_keys = [key for key, value in loss_dict.items() if isinstance(value, torch.Tensor)]
+        values = torch.stack([loss_dict[key] for key in tensor_keys]).cpu().tolist()
+        loss_dict.update(zip(tensor_keys, values))
 
         # Clear the storage
         self.storage.clear()

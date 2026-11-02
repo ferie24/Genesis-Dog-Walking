@@ -107,7 +107,12 @@ class OnPolicyRunner:
             # Rollout
             tracking_sum = torch.tensor(0.0, device=self.device)
             tracking_count = 0  
-            if it % self.vid_interval == 0 and self.logger.writer is not None:
+            record_video = (
+                self.vid_interval > 0
+                and it % self.vid_interval == 0
+                and self.logger.writer is not None
+            )
+            if record_video:
                 print("Recording video for evaluation...")
                 cam = self.env.camera
                 cam.start_recording()
@@ -152,7 +157,8 @@ class OnPolicyRunner:
                     intrinsic_rewards = self.alg.intrinsic_rewards if self.cfg["algorithm"]["rnd_cfg"] else None
                     # Book keeping
                     self.logger.process_env_step(rewards, dones, extras, intrinsic_rewards)
-                    if it % self.vid_interval == 0 and self.logger.writer is not None:
+                    if record_video:
+                        self.env._update_follow_camera()
                         cam.render()
 
                 stop = time.time()
@@ -161,7 +167,7 @@ class OnPolicyRunner:
 
                 # Compute returns
                 self.alg.compute_returns(obs)
-            if it % self.vid_interval == 0 and self.logger.writer is not None:
+            if record_video:
                 video_path = self.video_dir / f"go2_eval_{it}.mp4"
                 cam.stop_recording(save_to_filename=str(video_path), fps=50)
                 print(f"Video gespeichert unter: {video_path}")
